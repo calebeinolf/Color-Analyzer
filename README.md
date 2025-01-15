@@ -19,4 +19,4 @@ As you go higher, there may be no colors that fit the vibrancy threshold criteri
 PRACTICAL USE CASE:
 
 I used this for a webpage that is themed based on the company logo used in the page.
-The code selects 1-2 colors and made them the theme colors of the page.
+The code selects 1-2 colors and makes them the theme colors of the page.
