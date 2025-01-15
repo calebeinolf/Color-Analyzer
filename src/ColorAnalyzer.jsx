@@ -456,10 +456,15 @@ const ColorAnalyzer = () => {
                   </svg>
                 </div>
                 {showTooltip && (
-                  <div className="absolute top-full mt-2 w-56 p-2 bg-gray-800 text-white text-sm rounded shadow-lg">
-                    This controls how vibrant a color must be to be considered.
-                    A higher threshold will show the less common but very
-                    vibrant colors.
+                  <div className="flex flex-col absolute top-full mt-2 w-60 p-2 bg-gray-800 text-white text-sm rounded shadow-lg">
+                    <p>
+                      This controls how vibrant a color must be to be
+                      considered.
+                    </p>
+                    <p className="opacity-70 font-light">
+                      A higher threshold will show the most vibrant colors, even
+                      though they may be less common.
+                    </p>
                   </div>
                 )}
               </div>
