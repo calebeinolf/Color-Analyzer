@@ -4,6 +4,52 @@ import Sun from "./assets/sun.svg";
 import Moon from "./assets/moon.svg";
 import Favicon from "./assets/favicon.svg";
 
+const LoadingIndicator = () => {
+  return (
+    <div className="text-center py-2 relative">
+      <div className="inline-flex items-center gap-3">
+        <span>Analyzing colors</span>
+        <span className="inline-flex space-x-1">
+          <span
+            className="w-1 h-1 bg-current rounded-full"
+            style={{
+              animation: "highBounce 0.8s infinite",
+              animationDelay: "0ms",
+            }}
+          />
+          <span
+            className="w-1 h-1 bg-current rounded-full"
+            style={{
+              animation: "highBounce 0.8s infinite",
+              animationDelay: "200ms",
+            }}
+          />
+          <span
+            className="w-1 h-1 bg-current rounded-full"
+            style={{
+              animation: "highBounce 0.8s infinite",
+              animationDelay: "400ms",
+            }}
+          />
+        </span>
+      </div>
+
+      <style>{`
+          @keyframes highBounce {
+            0%, 100% {
+              transform: translateY(1px);
+              animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+            }
+            50% {
+              transform: translateY(-6px);
+              animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+            }
+          }
+        `}</style>
+    </div>
+  );
+};
+
 const ColorAnalyzer = () => {
   const rgbToHsl = (r, g, b) => {
     r /= 255;
@@ -58,7 +104,6 @@ const ColorAnalyzer = () => {
     return saturationWeight * lightnessWeight * grayPenalty;
   };
 
-  // ... rest of the existing color analysis functions ...
   const getLuminance = (bgColor) => {
     const matches = bgColor.match(/\d+/g);
     if (!matches || matches.length !== 3) return "black";
@@ -209,6 +254,121 @@ const ColorAnalyzer = () => {
     });
   };
 
+  const generateColorPalette = (dominantColors) => {
+    if (!dominantColors || dominantColors.length === 0) return null;
+
+    // Filter out white and black (very light and very dark colors)
+    const filteredColors = dominantColors.filter((color) => {
+      const [r, g, b] = color.match(/\d+/g).map(Number);
+      const brightness = (r + g + b) / 3;
+      return brightness > 30 && brightness < 225; // Adjust thresholds as needed
+    });
+
+    if (filteredColors.length === 0) return null;
+
+    // Get primary color (most dominant after filtering)
+    const primary = filteredColors[0];
+    const [primaryR, primaryG, primaryB] = primary.match(/\d+/g).map(Number);
+    const [primaryH, primaryS, primaryL] = rgbToHsl(
+      primaryR,
+      primaryG,
+      primaryB
+    );
+
+    // Find secondary color (next most dominant that's different enough from primary)
+    let secondary = null;
+    for (let i = 1; i < filteredColors.length; i++) {
+      const color = filteredColors[i];
+      const difference = getColorDifference(primary, color);
+      if (difference > 0.25) {
+        // Increased threshold for more distinct secondary
+        secondary = color;
+        break;
+      }
+    }
+    if (!secondary && filteredColors.length > 1) {
+      secondary = filteredColors[1]; // Fallback to second most dominant
+    }
+
+    // Generate complementary color (opposite of primary on color wheel)
+    const complementaryHue = (primaryH + 180) % 360;
+    const complementary = `rgb(${hslToRgb(
+      complementaryHue / 360,
+      primaryS / 100,
+      primaryL / 100
+    ).join(",")})`;
+
+    // Find accent color (most vibrant that's different from primary and secondary)
+    let accent = null;
+    let highestVibrancy = -1;
+
+    for (const { color, vibrancy } of allColors) {
+      // Skip if too similar to primary or secondary
+      if (getColorDifference(color, primary) < 0.2) continue;
+      if (secondary && getColorDifference(color, secondary) < 0.2) continue;
+
+      // Check if this is the most vibrant color we've found
+      if (vibrancy > highestVibrancy) {
+        const [r, g, b] = color.match(/\d+/g).map(Number);
+        const brightness = (r + g + b) / 3;
+        // Ensure it's not too light or dark
+        if (brightness > 30 && brightness < 225) {
+          accent = color;
+          highestVibrancy = vibrancy;
+        }
+      }
+    }
+
+    // Fallback for accent if none found
+    if (!accent) {
+      const accentHue = (primaryH + 120) % 360;
+      accent = `rgb(${hslToRgb(
+        accentHue / 360,
+        Math.min(primaryS / 100 + 0.2, 1),
+        primaryL / 100
+      ).join(",")})`;
+    }
+
+    return {
+      primary,
+      secondary:
+        secondary ||
+        `rgb(${hslToRgb(
+          ((primaryH + 30) % 360) / 360,
+          primaryS / 100,
+          primaryL / 100
+        ).join(",")})`,
+      complementary,
+      accent,
+    };
+  };
+
+  const hslToRgb = (h, s, l) => {
+    let r, g, b;
+
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      };
+
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+
+      r = hue2rgb(p, q, h + 1 / 3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1 / 3);
+    }
+
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+  };
+
   const [darkMode, setDarkMode] = useState(true);
 
   const [imageUrl, setImageUrl] = useState("");
@@ -222,6 +382,7 @@ const ColorAnalyzer = () => {
   const [copyFeedback, setCopyFeedback] = useState("");
   const fileInputRef = useRef(null);
   const [showTooltip, setShowTooltip] = useState(false);
+  const [showInputs, setShowInputs] = useState(true);
 
   const filteredColors = allColors
     .filter(({ vibrancy }) => vibrancy >= vibrancyThreshold)
@@ -231,11 +392,15 @@ const ColorAnalyzer = () => {
   const distinctColors = filterSimilarColors(filteredColors);
   const textColors = distinctColors.map((color) => getTextColor(color));
 
+  const colorPalette =
+    distinctColors.length > 0 ? generateColorPalette(distinctColors) : null;
+
   const handleUrlSubmit = (e) => {
     e.preventDefault();
     if (urlInput.trim()) {
       setUsedURLbtn(true);
       setImageUrl(urlInput);
+      setShowInputs(false);
       analyzeImage(urlInput);
     }
   };
@@ -248,6 +413,7 @@ const ColorAnalyzer = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         setImageUrl(reader.result);
+        setShowInputs(false);
         analyzeImage(reader.result);
       };
       reader.readAsDataURL(file);
@@ -325,16 +491,18 @@ const ColorAnalyzer = () => {
     setDarkMode(!darkMode);
   };
 
+  const contentRef = useRef(null);
+
   return (
     <div
       className={`${
         darkMode ? "bg-gray-900 text-white" : "bg-white text-gray-900"
       } min-h-screen transition-colors duration-200 `}
     >
-      <div className="max-w-4xl mx-auto p-6 space-y-6  pb-12">
-        <div className="flex align-middle my-4 ">
-          <img src={Favicon} width={35} />
-          <h1 className="text-2xl w-full font-bold  text-center">
+      <div className="max-w-4xl mx-auto p-6 space-y-6 pb-12">
+        <div className="flex align-middle my-4 px-3">
+          <img src={Favicon} width={34} />
+          <h1 className="text-2xl w-full font-semibold  text-center">
             Image Color Analyzer
           </h1>
           <button
@@ -356,77 +524,217 @@ const ColorAnalyzer = () => {
           </button>
         </div>
 
-        <form onSubmit={handleUrlSubmit} className="space-y-2">
-          <div className="flex gap-2">
-            <input
-              type="url"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="Enter image URL..."
-              className={`flex-1 p-2 border rounded ${
-                darkMode
-                  ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
-                  : "bg-white border-gray-300 text-gray-900"
-              }`}
-            />
+        <div
+          className={`p-3 rounded-xl ${
+            darkMode ? "bg-gray-800" : "bg-gray-100"
+          } ${!showInputs && "cursor-pointer"}`}
+          onClick={() => !showInputs && setShowInputs(!showInputs)}
+        >
+          <div className="w-full flex items-center justify-between">
+            <div className="pl-1 flex items-center gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                id="Outline"
+                viewBox="0 0 24 24"
+                width="16"
+                fill={darkMode ? "#ffffff" : "#000000"}
+              >
+                <path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0ZM5,2H19a3,3,0,0,1,3,3V19a2.951,2.951,0,0,1-.3,1.285l-9.163-9.163a5,5,0,0,0-7.072,0L2,14.586V5A3,3,0,0,1,5,2ZM5,22a3,3,0,0,1-3-3V17.414l4.878-4.878a3,3,0,0,1,4.244,0L20.285,21.7A2.951,2.951,0,0,1,19,22Z" />
+                <path d="M16,10.5A3.5,3.5,0,1,0,12.5,7,3.5,3.5,0,0,0,16,10.5Zm0-5A1.5,1.5,0,1,1,14.5,7,1.5,1.5,0,0,1,16,5.5Z" />
+              </svg>
+              <h2>Upload Image</h2>
+            </div>
             <button
-              type="submit"
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-200"
-              disabled={isLoading}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowInputs(!showInputs);
+              }}
+              className={`w-[34px] h-[34px] flex items-center justify-center rounded-full ${
+                darkMode
+                  ? "bg-gray-700 hover:bg-gray-600"
+                  : "bg-gray-200 hover:bg-gray-300"
+              } transition-colors duration-200`}
             >
-              Analyze URL
+              <svg
+                version="1.1"
+                viewBox="0 0 26.002 45.999"
+                width="7px"
+                fill={darkMode ? "#ffffff" : "#000000"}
+                className={`transform transition-transform duration-300 ${
+                  showInputs ? "rotate-90" : "-rotate-90"
+                }`}
+              >
+                <path d="M24.998,40.094c1.338,1.352,1.338,3.541,0,4.893c-1.338,1.35-3.506,1.352-4.846,0L1.004,25.447  c-1.338-1.352-1.338-3.543,0-4.895L20.152,1.014c1.34-1.352,3.506-1.352,4.846,0c1.338,1.352,1.338,3.541,0,4.893L9.295,23  L24.998,40.094z" />
+              </svg>
             </button>
           </div>
-        </form>
 
-        <div
-          className="space-y-2"
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <div className="flex items-center justify-center w-full ">
-            <label
-              className={`bg-transparent w-full flex flex-col items-center px-4 py-6 rounded-lg border-2 border-dashed cursor-pointer transition-colors duration-200 ${
-                isDragging
-                  ? "border-blue-500 "
-                  : darkMode
-                  ? "border-gray-600  "
-                  : "border-gray-300  "
-              }`}
-            >
-              <div className="flex flex-col items-center gap-4 select-none pointer-events-none ">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  id="Layer_1"
-                  data-name="Layer 1"
-                  viewBox="0 0 24 24"
-                  width="34"
-                  fill={darkMode ? "#d1d5db " : "#4b5563 "}
-                >
-                  <path d="M9,5.5c0-.83,.67-1.5,1.5-1.5s1.5,.67,1.5,1.5-.67,1.5-1.5,1.5-1.5-.67-1.5-1.5Zm15-.5v6c0,2.76-2.24,5-5,5H10c-2.76,0-5-2.24-5-5V5C5,2.24,7.24,0,10,0h9c2.76,0,5,2.24,5,5ZM7,11c0,.77,.29,1.47,.77,2.01l5.24-5.24c.98-.98,2.69-.98,3.67,0l1.04,1.04c.23,.23,.62,.23,.85,0l3.43-3.43v-.38c0-1.65-1.35-3-3-3H10c-1.65,0-3,1.35-3,3v6Zm15,0v-2.79l-2.02,2.02c-.98,.98-2.69,.98-3.67,0l-1.04-1.04c-.23-.23-.61-.23-.85,0l-4.79,4.79c.12,.02,.24,.02,.37,.02h9c1.65,0,3-1.35,3-3Zm-3.91,7.04c-.53-.15-1.08,.17-1.23,.7l-.29,1.06c-.21,.77-.71,1.42-1.41,1.81-.7,.4-1.51,.5-2.28,.29l-8.68-2.38c-1.6-.44-2.54-2.09-2.1-3.69l.96-3.56c.14-.53-.17-1.08-.7-1.23-.53-.14-1.08,.17-1.23,.7L.18,15.29c-.73,2.66,.84,5.42,3.5,6.15l8.68,2.38c.44,.12,.89,.18,1.33,.18,.86,0,1.7-.22,2.47-.66,1.16-.66,1.99-1.73,2.35-3.02l.29-1.06c.15-.53-.17-1.08-.7-1.23Z" />
-                </svg>
+          <div
+            ref={contentRef}
+            className={`transition-all duration-300 ease-in-out overflow-hidden ${
+              showInputs ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+            }`}
+          >
+            <div className="space-y-6">
+              <form onSubmit={handleUrlSubmit} className="space-y-2">
+                <div className="flex gap-3 pt-6">
+                  <input
+                    type="url"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    placeholder="Enter image URL..."
+                    className={`flex-1 p-2 border rounded ${
+                      darkMode
+                        ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+                        : "bg-white border-gray-300 text-gray-900"
+                    }`}
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-200"
+                    disabled={isLoading}
+                  >
+                    Analyze URL
+                  </button>
+                </div>
+              </form>
 
-                <span
-                  className={`text-sm ${
-                    darkMode ? "text-gray-300" : "text-gray-600"
-                  }`}
-                >
-                  Drag and drop image here or click to upload
-                </span>
+              <div
+                className="space-y-2"
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <div className="flex items-center justify-center w-full">
+                  <label
+                    className={`bg-transparent w-full flex flex-col items-center px-4 py-6 rounded-lg cursor-pointer transition-colors duration-200 ${
+                      isDragging
+                        ? "border-blue-500"
+                        : darkMode
+                        ? "border-gray-600"
+                        : "border-gray-300"
+                    }`}
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%23${
+                        isDragging ? "3b82f6" : darkMode ? "4b5563" : "d1d5db"
+                      }FF' stroke-width='3.5' stroke-dasharray='6%2c 14' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e")`,
+                    }}
+                  >
+                    <div className="flex flex-col items-center select-none pointer-events-none">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        width="34"
+                        fill={darkMode ? "#d1d5db" : "#4b5563"}
+                      >
+                        <path d="M9,5.5c0-.83,.67-1.5,1.5-1.5s1.5,.67,1.5,1.5-.67,1.5-1.5,1.5-1.5-.67-1.5-1.5Zm15-.5v6c0,2.76-2.24,5-5,5H10c-2.76,0-5-2.24-5-5V5C5,2.24,7.24,0,10,0h9c2.76,0,5,2.24,5,5ZM7,11c0,.77,.29,1.47,.77,2.01l5.24-5.24c.98-.98,2.69-.98,3.67,0l1.04,1.04c.23,.23,.62,.23,.85,0l3.43-3.43v-.38c0-1.65-1.35-3-3-3H10c-1.65,0-3,1.35-3,3v6Zm15,0v-2.79l-2.02,2.02c-.98,.98-2.69,.98-3.67,0l-1.04-1.04c-.23-.23-.61-.23-.85,0l-4.79,4.79c.12,.02,.24,.02,.37,.02h9c1.65,0,3-1.35,3-3Zm-3.91,7.04c-.53-.15-1.08,.17-1.23,.7l-.29,1.06c-.21,.77-.71,1.42-1.41,1.81-.7,.4-1.51,.5-2.28,.29l-8.68-2.38c-1.6-.44-2.54-2.09-2.1-3.69l.96-3.56c.14-.53-.17-1.08-.7-1.23-.53-.14-1.08,.17-1.23,.7L.18,15.29c-.73,2.66,.84,5.42,3.5,6.15l8.68,2.38c.44,.12,.89,.18,1.33,.18,.86,0,1.7-.22,2.47-.66,1.16-.66,1.99-1.73,2.35-3.02l.29-1.06c.15-.53-.17-1.08-.7-1.23Z" />
+                      </svg>
+                      <span
+                        className={`mt-4 text-sm ${
+                          darkMode ? "text-gray-300" : "text-gray-600"
+                        }`}
+                      >
+                        Drag and drop image here
+                      </span>
+                      <div className="flex gap-2">
+                        <span
+                          className={`text-sm ${
+                            darkMode ? "text-gray-300" : "text-gray-600"
+                          }`}
+                        >
+                          or click to upload
+                        </span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          id="Outline"
+                          viewBox="0 0 24 24"
+                          width="12"
+                          fill={darkMode ? "#d1d5db" : "#374151"}
+                          stroke={darkMode ? "#d1d5db" : "#374151"}
+                        >
+                          <path d="M11.007,2.578,11,18.016a1,1,0,0,0,1,1h0a1,1,0,0,0,1-1l.007-15.421,2.912,2.913a1,1,0,0,0,1.414,0h0a1,1,0,0,0,0-1.414L14.122.879a3,3,0,0,0-4.244,0L6.667,4.091a1,1,0,0,0,0,1.414h0a1,1,0,0,0,1.414,0Z" />
+                          <path d="M22,17v4a1,1,0,0,1-1,1H3a1,1,0,0,1-1-1V17a1,1,0,0,0-1-1H1a1,1,0,0,0-1,1v4a3,3,0,0,0,3,3H21a3,3,0,0,0,3-3V17a1,1,0,0,0-1-1h0A1,1,0,0,0,22,17Z" />
+                        </svg>
+                      </div>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload(e.target.files)}
+                      disabled={isLoading}
+                    />
+                  </label>
+                </div>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept="image/*"
-                onChange={(e) => handleFileUpload(e.target.files)}
-                disabled={isLoading}
-              />
-            </label>
+            </div>
           </div>
         </div>
+
+        {error && (
+          <div className="text-center flex flex-col gap-2">
+            <div
+              className={` p-2 rounded ${
+                darkMode ? "bg-red-900 text-white" : "bg-red-100 text-red-500"
+              } flex items-center justify-center gap-3`}
+            >
+              <svg
+                fill={darkMode ? "white" : "#ef4444"}
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="m12 14a1 1 0 0 1 -1-1v-3a1 1 0 1 1 2 0v3a1 1 0 0 1 -1 1zm-1.5 2.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1 -3 0z" />
+                <path d="m10.23 3.216c.75-1.425 2.79-1.425 3.54 0l8.343 15.852c.701 1.332-.263 2.932-1.77 2.932h-16.686c-1.505 0-2.47-1.6-1.77-2.931zm10.114 16.784-8.344-15.853-8.344 15.853z" />
+              </svg>
+              {error}
+            </div>
+            {usedURLbtn && (
+              <div
+                className={`p-2 rounded flex items-center justify-center gap-3 ${
+                  darkMode
+                    ? "bg-gray-800 text-gray-300"
+                    : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                <svg
+                  fill={darkMode ? "#d1d5db" : "#374151 "}
+                  width="15"
+                  xmlns="http://www.w3.org/2000/svg"
+                  id="Outline"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Z" />
+                  <path d="M12,10H11a1,1,0,0,0,0,2h1v6a1,1,0,0,0,2,0V12A2,2,0,0,0,12,10Z" />
+                  <circle cx="12" cy="6.5" r="1.5" />
+                </svg>
+                Sometimes URLs are restricted. Try downloading the image first
+                and then uploading it.
+              </div>
+            )}
+          </div>
+        )}
+
+        {copyFeedback && (
+          <div className="fixed top-0 right-5 bg-gray-800 text-white px-4 py-2 rounded shadow-lg flex gap-2">
+            <img src={CheckIcon} width={16} />
+            Copied {copyFeedback}
+          </div>
+        )}
+
+        {isLoading && <LoadingIndicator />}
+
+        {imageUrl && (
+          <div className="space-y-4">
+            <img
+              src={imageUrl}
+              alt="Uploaded preview"
+              className="max-w-full h-auto rounded mx-auto max-h-64 min-h-24"
+            />
+          </div>
+        )}
 
         {allColors.length > 0 && (
           <div className="space-y-2">
@@ -483,83 +791,61 @@ const ColorAnalyzer = () => {
           </div>
         )}
 
-        {error && (
-          <div className="text-center flex flex-col gap-2">
-            <div
-              className={` p-2 rounded ${
-                darkMode ? "bg-red-900 text-white" : "bg-red-100 text-red-500"
-              } flex items-center justify-center gap-3`}
-            >
-              <svg
-                fill={darkMode ? "white" : "#ef4444"}
-                viewBox="0 0 24 24"
-                width="18"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path d="m12 14a1 1 0 0 1 -1-1v-3a1 1 0 1 1 2 0v3a1 1 0 0 1 -1 1zm-1.5 2.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1 -3 0z" />
-                <path d="m10.23 3.216c.75-1.425 2.79-1.425 3.54 0l8.343 15.852c.701 1.332-.263 2.932-1.77 2.932h-16.686c-1.505 0-2.47-1.6-1.77-2.931zm10.114 16.784-8.344-15.853-8.344 15.853z" />
-              </svg>
-              {error}
-            </div>
-            {usedURLbtn && (
-              <div
-                className={`p-2 rounded flex items-center justify-center gap-3 ${
-                  darkMode
-                    ? "bg-gray-800 text-gray-300"
-                    : "bg-gray-100 text-gray-600"
-                }`}
-              >
-                <svg
-                  fill={darkMode ? "#d1d5db" : "#374151 "}
-                  width="15"
-                  xmlns="http://www.w3.org/2000/svg"
-                  id="Outline"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Z" />
-                  <path d="M12,10H11a1,1,0,0,0,0,2h1v6a1,1,0,0,0,2,0V12A2,2,0,0,0,12,10Z" />
-                  <circle cx="12" cy="6.5" r="1.5" />
-                </svg>
-                Sometimes URLs are restricted. Try downloading the image first
-                and then uploading it.
-              </div>
-            )}
-          </div>
-        )}
-
-        {copyFeedback && (
-          <div className="fixed top-0 right-5 bg-gray-800 text-white px-4 py-2 rounded shadow-lg flex gap-2">
-            <img src={CheckIcon} width={16} />
-            Copied {copyFeedback}
-          </div>
-        )}
-
-        {isLoading && (
-          <div className="text-center py-4">Analyzing image...</div>
-        )}
-
         {imageUrl && (
           <div className="space-y-4">
-            <img
-              src={imageUrl}
-              alt="Uploaded preview"
-              className="max-w-full h-auto rounded mx-auto max-h-96"
-            />
-
+            <h2 className="text-xl font-semibold my-2">Dominant colors:</h2>
             {!error && distinctColors.length > 0 && (
-              <div>
-                <h2 className="text-xl font-semibold my-2">
-                  Dominant colors (click to copy):
-                </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
+                {distinctColors.map((color, index) => (
+                  <div
+                    key={index}
+                    className="py-4 text-sm rounded flex flex-col gap-1 items-center justify-center"
+                    style={{
+                      backgroundColor: color,
+                      color: textColors[index],
+                    }}
+                  >
+                    <button
+                      onClick={() => handleCopyColor(rgbToHex(color))}
+                      className="flex flex-col hover:scale-105 focus:outline-none transition-transform"
+                    >
+                      <p>{rgbToHex(color)}</p>
+                    </button>
+                    <button
+                      onClick={() => handleCopyColor(color)}
+                      className="flex flex-col hover:scale-105 focus:outline-none transition-transform"
+                    >
+                      <p>{color}</p>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {distinctColors.length === 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
+                <div
+                  className={`py-4 text-sm rounded flex flex-col gap-1 items-center justify-center ${
+                    darkMode ? "bg-gray-800 " : "bg-gray-100 "
+                  } `}
+                >
+                  <p>No colors</p>
+                  <p className="opacity-50">Try turning vibrancy down</p>
+                </div>
+              </div>
+            )}
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
-                  {distinctColors.map((color, index) => (
+            <h2 className="text-xl font-semibold my-2">
+              Suggested Color Palette:
+            </h2>
+            {!error && colorPalette && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {Object.entries(colorPalette).map(([name, color]) => (
+                  <div key={name}>
                     <div
-                      key={index}
-                      className="h-24 rounded flex flex-col gap-2 items-center justify-center"
+                      className="py-4 text-sm rounded flex flex-col gap-1 items-center justify-center"
                       style={{
                         backgroundColor: color,
-                        color: textColors[index],
+                        color: getTextColor(color),
                       }}
                     >
                       <button
@@ -575,7 +861,22 @@ const ColorAnalyzer = () => {
                         <p>{color}</p>
                       </button>
                     </div>
-                  ))}
+                    <p className="text-sm capitalize font-medium text-center mt-1">
+                      {name}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!colorPalette && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
+                <div
+                  className={`py-4 text-sm rounded flex flex-col gap-1 items-center justify-center ${
+                    darkMode ? "bg-gray-800 " : "bg-gray-100 "
+                  } `}
+                >
+                  <p>No colors</p>
+                  <p className="opacity-50">Try turning vibrancy down</p>
                 </div>
               </div>
             )}

@@ -3,8 +3,7 @@ export default {
   content: [
     "./index.html",
     "./src/coloranalyzer.jsx",
-    "./src/coloranalyzer2.jsx",
-    "./src/coloranalyzer3.jsx",
+    "./src/coloranalyzerold.jsx",
   ],
   theme: {
     extend: {},
