@@ -1,8 +1,8 @@
-import React, { useState, useRef } from "react";
-import CheckIcon from "./assets/check.svg";
-import Sun from "./assets/sun.svg";
-import Moon from "./assets/moon.svg";
+import React, { useState, useRef, useEffect } from "react";
 import Favicon from "./assets/favicon.svg";
+import CheckIcon from "./components/check-icon.jsx";
+import Cookies from "js-cookie";
+import { use } from "react";
 
 const LoadingIndicator = () => {
   return (
@@ -369,7 +369,8 @@ const ColorAnalyzer = () => {
     return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
   };
 
-  const [darkMode, setDarkMode] = useState(true);
+  const getSystemTheme = () =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
 
   const [imageUrl, setImageUrl] = useState("");
   const [urlInput, setUrlInput] = useState("");
@@ -383,11 +384,202 @@ const ColorAnalyzer = () => {
   const fileInputRef = useRef(null);
   const [showTooltip, setShowTooltip] = useState(false);
   const [showInputs, setShowInputs] = useState(true);
+  const [themePanelOpen, setThemePanelOpen] = useState(false);
+  const [themeColor, setThemeColor] = useState("#ff0000");
+  const [themeTextColor, setThemeTextColor] = useState(
+    getTextColor(themeColor)
+  );
+
+  const [darkMode, setDarkMode] = useState(false);
+  const [systemMode, setSystemMode] = useState(true);
+
+  // Detect system preference
+  const getSystemPreference = () =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+  useEffect(() => {
+    // Load user preference from cookies
+    const savedPreference = Cookies.get("themePreference");
+
+    if (savedPreference) {
+      if (savedPreference === "light") {
+        setDarkMode(false);
+        setSystemMode(false);
+      } else if (savedPreference === "dark") {
+        setDarkMode(true);
+        setSystemMode(false);
+      } else {
+        setSystemMode(true);
+        setDarkMode(getSystemPreference());
+      }
+    } else {
+      // Default to system preference
+      setSystemMode(true);
+      setDarkMode(getSystemPreference());
+    }
+
+    // Listen for system preference changes
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      if (systemMode) {
+        setDarkMode(mediaQuery.matches);
+      }
+    };
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [systemMode]);
+
+  const savePreference = (preference) => {
+    Cookies.set("themePreference", preference, { expires: 365 }); // Save preference for a year
+  };
+
+  const handleLightMode = () => {
+    setDarkMode(false);
+    setSystemMode(false);
+    savePreference("light");
+  };
+
+  const handleDarkMode = () => {
+    setDarkMode(true);
+    setSystemMode(false);
+    savePreference("dark");
+  };
+
+  const handleSystemMode = () => {
+    setSystemMode(true);
+    setDarkMode(getSystemPreference());
+    savePreference("system");
+  };
+
+  const HoverMenuButton = () => {
+    const menuRef = useRef(null);
+
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (menuRef.current && !menuRef.current.contains(event.target)) {
+          setThemePanelOpen(false);
+        }
+      };
+
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }, []);
+
+    return (
+      <div className="relative" ref={menuRef}>
+        <button
+          onClick={() => setThemePanelOpen(!themePanelOpen)}
+          className={`p-2 h-min rounded-full ${
+            darkMode
+              ? "bg-gray-700 hover:bg-gray-600"
+              : "bg-gray-200 hover:bg-gray-300"
+          } `}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="currentColor"
+          >
+            <path d="m12 22c5.5228475 0 10-4.4771525 10-10s-4.4771525-10-10-10-10 4.4771525-10 10 4.4771525 10 10 10zm0-1.5v-17c4.6944204 0 8.5 3.80557963 8.5 8.5 0 4.6944204-3.8055796 8.5-8.5 8.5z" />
+          </svg>
+        </button>
+
+        {themePanelOpen && (
+          <div
+            className={`z-10 absolute right-0 top-full mt-2 w-36 ${
+              darkMode ? "bg-gray-700 text-white" : "bg-gray-200 text-black"
+            }  rounded-lg shadow-lg overflow-hidden `}
+          >
+            <button
+              className={`flex items-center gap-2 w-full px-4 py-2 text-left ${
+                darkMode ? "hover:bg-gray-600" : "hover:bg-gray-300"
+              }  transition-colors duration-200`}
+              onClick={handleLightMode}
+            >
+              <svg
+                enable-background="new 0 0 91 91"
+                width="20"
+                fill="currentColor"
+                viewBox="0 0 91 91"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="m45.5 23.5c-12.1 0-22 9.9-22 22s9.9 22 22 22 22-9.9 22-22-9.9-22-22-22zm0 36c-7.7 0-14-6.3-14-14s6.3-14 14-14 14 6.3 14 14-6.3 14-14 14z" />
+                <path d="m45.5 16.2c2.2 0 4-1.8 4-4v-8.1c0-2.2-1.8-4-4-4s-4 1.8-4 4v8.1c0 2.3 1.8 4 4 4z" />
+                <path d="m86.9 41.5h-8.1c-2.2 0-4 1.8-4 4s1.8 4 4 4h8.1c2.2 0 4-1.8 4-4s-1.8-4-4-4z" />
+                <path d="m45.5 74.8c-2.2 0-4 1.8-4 4v8.1c0 2.2 1.8 4 4 4s4-1.8 4-4v-8.1c0-2.3-1.8-4-4-4z" />
+                <path d="m16.2 45.5c0-2.2-1.8-4-4-4h-8.1c-2.2 0-4 1.8-4 4s1.8 4 4 4h8.1c2.3 0 4-1.8 4-4z" />
+                <path d="m69 26c1 0 2-.4 2.8-1.2l5.8-5.8c1.6-1.6 1.6-4.1 0-5.7s-4.1-1.6-5.7 0l-5.8 5.8c-1.6 1.6-1.6 4.1 0 5.7.9.8 1.9 1.2 2.9 1.2z" />
+                <path d="m71.8 66.2c-1.6-1.6-4.1-1.6-5.7 0s-1.6 4.1 0 5.7l5.8 5.8c.8.8 1.8 1.2 2.8 1.2s2-.4 2.8-1.2c1.6-1.6 1.6-4.1 0-5.7z" />
+                <path d="m19.2 66.2-5.8 5.8c-1.6 1.6-1.6 4.1 0 5.7.8.8 1.8 1.2 2.8 1.2s2-.4 2.8-1.2l5.8-5.8c1.6-1.6 1.6-4.1 0-5.7-1.5-1.6-4.1-1.6-5.6 0z" />
+                <path d="m19.2 24.8c.7.8 1.8 1.2 2.8 1.2s2-.4 2.8-1.2c1.6-1.6 1.6-4.1 0-5.7l-5.8-5.8c-1.6-1.6-4.1-1.6-5.7 0s-1.6 4.1 0 5.7z" />
+              </svg>
+              Light
+              {!darkMode &&
+                !systemMode &&
+                CheckIcon(darkMode ? "white" : "black", 10)}
+            </button>
+            <button
+              className={`flex items-center gap-2 w-full px-4 py-2 text-left ${
+                darkMode ? "hover:bg-gray-600" : "hover:bg-gray-300"
+              }  transition-colors duration-200`}
+              onClick={handleDarkMode}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                id="Layer_1"
+                data-name="Layer 1"
+                viewBox="0 0 24 24"
+                width="20"
+                fill="currentColor"
+              >
+                <path d="M15,24a12.021,12.021,0,0,1-8.914-3.966,11.9,11.9,0,0,1-3.02-9.309A12.122,12.122,0,0,1,13.085.152a13.061,13.061,0,0,1,5.031.205,2.5,2.5,0,0,1,1.108,4.226c-4.56,4.166-4.164,10.644.807,14.41a2.5,2.5,0,0,1-.7,4.32A13.894,13.894,0,0,1,15,24Zm.076-22a10.793,10.793,0,0,0-1.677.127,10.093,10.093,0,0,0-8.344,8.8A9.927,9.927,0,0,0,7.572,18.7,10.476,10.476,0,0,0,18.664,21.43a.5.5,0,0,0,.139-.857c-5.929-4.478-6.4-12.486-.948-17.449a.459.459,0,0,0,.128-.466.49.49,0,0,0-.356-.361A10.657,10.657,0,0,0,15.076,2Z" />
+              </svg>
+              Dark
+              {darkMode &&
+                !systemMode &&
+                CheckIcon(darkMode ? "white" : "black", 10)}
+            </button>
+            <button
+              className={`flex items-center gap-2 w-full px-4 py-2 text-left ${
+                darkMode ? "hover:bg-gray-600" : "hover:bg-gray-300"
+              }  transition-colors duration-200`}
+              onClick={handleSystemMode}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                id="Outline"
+                viewBox="0 0 24 24"
+                width="20"
+                fill="currentColor"
+              >
+                <path d="M19,1H5A5.006,5.006,0,0,0,0,6v8a5.006,5.006,0,0,0,5,5h6v2H7a1,1,0,0,0,0,2H17a1,1,0,0,0,0-2H13V19h6a5.006,5.006,0,0,0,5-5V6A5.006,5.006,0,0,0,19,1ZM5,3H19a3,3,0,0,1,3,3v7H2V6A3,3,0,0,1,5,3ZM19,17H5a3,3,0,0,1-2.816-2H21.816A3,3,0,0,1,19,17Z" />
+              </svg>
+              System
+              {systemMode && CheckIcon(darkMode ? "white" : "black", 10)}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const filteredColors = allColors
     .filter(({ vibrancy }) => vibrancy >= vibrancyThreshold)
     .map(({ color }) => color)
     .slice(0, 20);
+
+  useEffect(() => {
+    if (filteredColors.length > 0) {
+      setThemeColor(filteredColors[0]);
+      setThemeTextColor(getTextColor(filteredColors[0]));
+    } else {
+      setThemeColor(darkMode ? "white" : "black");
+      setThemeTextColor(darkMode ? "black" : "white");
+    }
+  }, [filteredColors]);
 
   const distinctColors = filterSimilarColors(filteredColors);
   const textColors = distinctColors.map((color) => getTextColor(color));
@@ -493,35 +685,25 @@ const ColorAnalyzer = () => {
 
   const contentRef = useRef(null);
 
+  const sliderStyles = {
+    trackColor: darkMode ? "#4A5568" : "#E2E8F0",
+    thumbColor: themeColor,
+  };
+
   return (
     <div
       className={`${
-        darkMode ? "bg-gray-900 text-white" : "bg-white text-gray-900"
+        darkMode ? "relative bg-gray-900 text-white" : "bg-white text-gray-900"
       } min-h-screen transition-colors duration-200 `}
     >
-      <div className="max-w-4xl mx-auto p-6 space-y-6 pb-12">
-        <div className="flex align-middle my-4 px-3">
-          <img src={Favicon} width={34} />
+      <div className="max-w-4xl mx-auto p-6 px-3 sm:px-4 md:px-6 space-y-6 pb-12">
+        <div className="flex align-middle my-4 px-3 gap-3">
+          <img src={Favicon} width={34} height={34} className="max-h-[34px]" />
           <h1 className="text-2xl w-full font-semibold  text-center">
             Image Color Analyzer
           </h1>
-          <button
-            onClick={toggleDarkMode}
-            className={`p-2 h-min rounded-full ${
-              darkMode
-                ? "bg-gray-700 hover:bg-gray-600"
-                : "bg-gray-200 hover:bg-gray-300"
-            } transition-colors duration-200`}
-            aria-label={
-              darkMode ? "Switch to light mode" : "Switch to dark mode"
-            }
-          >
-            {darkMode ? (
-              <img src={Sun} width={20} />
-            ) : (
-              <img src={Moon} width={20} />
-            )}
-          </button>
+
+          <HoverMenuButton />
         </div>
 
         <div
@@ -577,7 +759,7 @@ const ColorAnalyzer = () => {
           >
             <div className="space-y-6">
               <form onSubmit={handleUrlSubmit} className="space-y-2">
-                <div className="flex gap-3 pt-6">
+                <div className="flex gap-3 pt-6 flex-col min-[440px]:flex-row">
                   <input
                     type="url"
                     value={urlInput}
@@ -591,7 +773,8 @@ const ColorAnalyzer = () => {
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-200"
+                    className="px-4 py-2  rounded  transition-colors duration-200"
+                    style={{ background: themeColor, color: themeTextColor }}
                     disabled={isLoading}
                   >
                     Analyze URL
@@ -608,18 +791,19 @@ const ColorAnalyzer = () => {
               >
                 <div className="flex items-center justify-center w-full">
                   <label
-                    className={`bg-transparent w-full flex flex-col items-center px-4 py-6 rounded-lg cursor-pointer transition-colors duration-200 ${
-                      isDragging
-                        ? "border-blue-500"
-                        : darkMode
-                        ? "border-gray-600"
-                        : "border-gray-300"
-                    }`}
+                    className={`bg-transparent w-full flex flex-col items-center px-4 py-6 rounded-lg cursor-pointer transition-colors duration-200 border-2 border-dashed `}
                     style={{
-                      backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%23${
-                        isDragging ? "3b82f6" : darkMode ? "4b5563" : "d1d5db"
-                      }FF' stroke-width='3.5' stroke-dasharray='6%2c 14' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e")`,
+                      borderColor: isDragging
+                        ? themeColor
+                        : darkMode
+                        ? "#4b5563 "
+                        : "#d1d5db ",
                     }}
+                    // style={{
+                    //   backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%23${
+                    //     isDragging ? "3b82f6" : darkMode ? "4b5563" : "d1d5db"
+                    //   }FF' stroke-width='3.5' stroke-dasharray='6%2c 14' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e")`,
+                    // }}
                   >
                     <div className="flex flex-col items-center select-none pointer-events-none">
                       <svg
@@ -657,12 +841,19 @@ const ColorAnalyzer = () => {
                           <path d="M22,17v4a1,1,0,0,1-1,1H3a1,1,0,0,1-1-1V17a1,1,0,0,0-1-1H1a1,1,0,0,0-1,1v4a3,3,0,0,0,3,3H21a3,3,0,0,0,3-3V17a1,1,0,0,0-1-1h0A1,1,0,0,0,22,17Z" />
                         </svg>
                       </div>
+                      <span
+                        className={`text-sm pt-2 ${
+                          darkMode ? "text-gray-500" : "text-gray-400"
+                        }`}
+                      >
+                        .png, .jpg, .jpeg, .webp, .svg, .gif
+                      </span>
                     </div>
                     <input
                       ref={fileInputRef}
                       type="file"
                       className="hidden"
-                      accept="image/*"
+                      accept="image/png, image/jpeg, image/webp, image/jpg, image/svg, image/gif"
                       onChange={(e) => handleFileUpload(e.target.files)}
                       disabled={isLoading}
                     />
@@ -719,8 +910,7 @@ const ColorAnalyzer = () => {
 
         {copyFeedback && (
           <div className="fixed top-0 right-5 bg-gray-800 text-white px-4 py-2 rounded shadow-lg flex gap-2">
-            <img src={CheckIcon} width={16} />
-            Copied {copyFeedback}
+            {CheckIcon("white", 16)} Copied {copyFeedback}
           </div>
         )}
 
@@ -784,16 +974,48 @@ const ColorAnalyzer = () => {
               step="0.05"
               value={vibrancyThreshold}
               onChange={(e) => setVibrancyThreshold(parseFloat(e.target.value))}
-              className={`w-full h-2 rounded-lg appearance-none cursor-pointer ${
-                darkMode ? "bg-gray-700" : "bg-gray-200"
-              }`}
+              style={{
+                // width: "100%",
+                // height: "8px",
+                background: sliderStyles.trackColor,
+                // borderRadius: "10px",
+                // WebkitAppearance: "none",
+              }}
+              className="w-full h-2 rounded-lg appearance-none cursor-pointer custom-slider"
             />
+
+            <style jsx>{`
+              .custom-slider::-webkit-slider-thumb {
+                appearance: none;
+                background: ${sliderStyles.thumbColor};
+                border: 3px solid ${darkMode ? "#111827" : "#ffffff"};
+                height: 20px;
+                width: 20px;
+                border-radius: 50%;
+                cursor: pointer;
+                transition-property: background;
+                transition-duration: 0.3s;
+              }
+
+              .custom-slider::-webkit-slider-runnable-track {
+                // border-radius: 10px;
+              }
+            `}</style>
           </div>
         )}
 
         {imageUrl && (
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold my-2">Dominant colors:</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Dominant colors:</h2>
+              <h2
+                className={`text-sm ${
+                  darkMode ? "text-gray-300" : "text-gray-700"
+                } `}
+              >
+                Click colors to copy
+              </h2>
+            </div>
             {!error && distinctColors.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
                 {distinctColors.map((color, index) => (
@@ -883,7 +1105,7 @@ const ColorAnalyzer = () => {
           </div>
         )}
 
-        <div className="pt-10 flex flex-col items-center gap-2">
+        <div className="pt-10 flex flex-col items-center gap-2 ">
           <h4
             className={` text-sm ${
               darkMode ? "text-gray-400" : "text-gray-500"
@@ -910,7 +1132,6 @@ const ColorAnalyzer = () => {
             </a>
             <a href="https://www.linkedin.com/in/calebeinolf/" target="_blank">
               <svg
-                class="svg-icon"
                 width="22px"
                 viewBox="0 0 1024 1024"
                 version="1.1"
