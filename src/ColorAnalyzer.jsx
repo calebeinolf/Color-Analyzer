@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
-import Favicon from "./assets/favicon.svg";
+import Favicon from "./assets/favicon.png";
 import CheckIcon from "./components/check-icon.jsx";
+import CloseIcon from "./assets/closeIcon.svg";
+import CropIcon from "./assets/cropIcon.svg";
 import Cookies from "js-cookie";
-import { use } from "react";
+import ReactCrop from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 
 const LoadingIndicator = () => {
   return (
@@ -51,6 +54,113 @@ const LoadingIndicator = () => {
 };
 
 const ColorAnalyzer = () => {
+  const CropModal = ({ isOpen, onClose, imageUrl, onCropComplete }) => {
+    const [crop, setCrop] = useState({
+      unit: "%",
+      width: 70,
+      height: 70,
+      aspect: undefined,
+    });
+    const [completedCrop, setCompletedCrop] = useState(null);
+    const imgRef = useRef(null);
+
+    const getCroppedImg = () => {
+      if (!completedCrop || !imgRef.current) return;
+
+      const canvas = document.createElement("canvas");
+      const scaleX = imgRef.current.naturalWidth / imgRef.current.width;
+      const scaleY = imgRef.current.naturalHeight / imgRef.current.height;
+      canvas.width = completedCrop.width;
+      canvas.height = completedCrop.height;
+      const ctx = canvas.getContext("2d");
+
+      ctx.drawImage(
+        imgRef.current,
+        completedCrop.x * scaleX,
+        completedCrop.y * scaleY,
+        completedCrop.width * scaleX,
+        completedCrop.height * scaleY,
+        0,
+        0,
+        completedCrop.width,
+        completedCrop.height
+      );
+
+      return new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+          resolve(URL.createObjectURL(blob));
+        }, "image/jpeg");
+      });
+    };
+
+    const handleCropComplete = async () => {
+      console.log(crop);
+      if (crop.height > 20 && crop.width > 20) {
+        const croppedImageUrl = await getCroppedImg();
+        onCropComplete(croppedImageUrl);
+        onClose();
+      } else {
+        alert("Please crop the image to at least 20x20 pixels.");
+      }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div
+          className={`bg-${
+            darkMode ? "gray-800" : "white"
+          } p-6 rounded-lg max-w-4xl max-h-[90vh] mx-4 overflow-y-auto`}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Crop Image</h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-200 rounded-full"
+            >
+              <img src={CloseIcon} width={12} height={12} />
+            </button>
+          </div>
+
+          <div className="relative">
+            <ReactCrop
+              crop={crop}
+              onChange={(c) => setCrop(c)}
+              onComplete={(c) => setCompletedCrop(c)}
+            >
+              <img
+                ref={imgRef}
+                src={imageUrl}
+                className="max-h-[60vh] h-64 w-auto mx-auto"
+              />
+            </ReactCrop>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-4">
+            <button
+              onClick={onClose}
+              className={`px-4 py-2 rounded ${
+                darkMode
+                  ? "bg-gray-700 hover:bg-gray-600"
+                  : "bg-gray-200 hover:bg-gray-300"
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCropComplete}
+              className="px-4 py-2 rounded"
+              style={{ background: themeColor, color: themeTextColor }}
+            >
+              Apply Crop
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const rgbToHsl = (r, g, b) => {
     r /= 255;
     g /= 255;
@@ -125,8 +235,16 @@ const ColorAnalyzer = () => {
   };
 
   const getTextColor = (bgColor) => {
-    const luminance = getLuminance(bgColor);
-    return luminance > 0.5 ? "black" : "white";
+    const bgLuminance = getLuminance(bgColor);
+    const whiteLuminance = 1.0; // White's luminance is 1
+    const blackLuminance = 0.0; // Black's luminance is 0
+
+    // Calculate contrast ratios
+    const whiteContrast = (whiteLuminance + 0.05) / (bgLuminance + 0.05);
+    const blackContrast = (bgLuminance + 0.05) / (blackLuminance + 0.05);
+
+    // Return the color with better contrast (minimum 4.5:1 as per WCAG)
+    return whiteContrast > blackContrast ? "white" : "black";
   };
 
   const getColorDifference = (color1, color2) => {
@@ -369,10 +487,8 @@ const ColorAnalyzer = () => {
     return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
   };
 
-  const getSystemTheme = () =>
-    window.matchMedia("(prefers-color-scheme: dark)").matches;
-
   const [imageUrl, setImageUrl] = useState("");
+  const [originalImageUrl, setOriginalImageUrl] = useState("");
   const [urlInput, setUrlInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -380,12 +496,14 @@ const ColorAnalyzer = () => {
   const [allColors, setAllColors] = useState([]);
   const [vibrancyThreshold, setVibrancyThreshold] = useState(0.2);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHoveringImage, setIsHoveringImage] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState("");
   const fileInputRef = useRef(null);
   const [showTooltip, setShowTooltip] = useState(false);
   const [showInputs, setShowInputs] = useState(true);
   const [themePanelOpen, setThemePanelOpen] = useState(false);
-  const [themeColor, setThemeColor] = useState("#ff0000");
+  const [themeColor, setThemeColor] = useState("#3b82f6");
+  const [copyTimeout, setCopyTimeout] = useState(null);
   const [themeTextColor, setThemeTextColor] = useState(
     getTextColor(themeColor)
   );
@@ -437,18 +555,21 @@ const ColorAnalyzer = () => {
     setDarkMode(false);
     setSystemMode(false);
     savePreference("light");
+    setThemePanelOpen(false);
   };
 
   const handleDarkMode = () => {
     setDarkMode(true);
     setSystemMode(false);
     savePreference("dark");
+    setThemePanelOpen(false);
   };
 
   const handleSystemMode = () => {
     setSystemMode(true);
     setDarkMode(getSystemPreference());
     savePreference("system");
+    setThemePanelOpen(false);
   };
 
   const HoverMenuButton = () => {
@@ -479,7 +600,7 @@ const ColorAnalyzer = () => {
         >
           <svg
             viewBox="0 0 24 24"
-            width="20"
+            width="18"
             xmlns="http://www.w3.org/2000/svg"
             fill="currentColor"
           >
@@ -575,9 +696,6 @@ const ColorAnalyzer = () => {
     if (filteredColors.length > 0) {
       setThemeColor(filteredColors[0]);
       setThemeTextColor(getTextColor(filteredColors[0]));
-    } else {
-      setThemeColor(darkMode ? "white" : "black");
-      setThemeTextColor(darkMode ? "black" : "white");
     }
   }, [filteredColors]);
 
@@ -591,6 +709,7 @@ const ColorAnalyzer = () => {
     e.preventDefault();
     if (urlInput.trim()) {
       setUsedURLbtn(true);
+      setOriginalImageUrl(urlInput); // Store original
       setImageUrl(urlInput);
       setShowInputs(false);
       analyzeImage(urlInput);
@@ -604,6 +723,7 @@ const ColorAnalyzer = () => {
       setUrlInput("");
       const reader = new FileReader();
       reader.onloadend = () => {
+        setOriginalImageUrl(reader.result); // Store original
         setImageUrl(reader.result);
         setShowInputs(false);
         analyzeImage(reader.result);
@@ -611,6 +731,20 @@ const ColorAnalyzer = () => {
       reader.readAsDataURL(file);
     } else {
       setError("Please upload a valid image file.");
+    }
+  };
+
+  const handleClearImage = () => {
+    setImageUrl("");
+    setOriginalImageUrl("");
+    setUrlInput("");
+    setAllColors([]);
+    setError("");
+    setShowInputs(true);
+    setThemeColor("#3b82f6");
+    setThemeTextColor("#ffffff");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -643,13 +777,30 @@ const ColorAnalyzer = () => {
   const handleCopyColor = async (color) => {
     try {
       await navigator.clipboard.writeText(color);
+
+      // Clear any existing timeout
+      if (copyTimeout) {
+        clearTimeout(copyTimeout);
+      }
+
+      // Set the feedback and create new timeout
       setCopyFeedback(color);
-      setTimeout(() => setCopyFeedback(""), 1500);
+      const newTimeout = setTimeout(() => setCopyFeedback(""), 1500);
+      setCopyTimeout(newTimeout);
     } catch (err) {
       console.error("Failed to copy color: ", err);
       setError("Failed to copy color to clipboard");
     }
   };
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeout) {
+        clearTimeout(copyTimeout);
+      }
+    };
+  }, [copyTimeout]);
 
   const analyzeImage = async (url) => {
     setIsLoading(true);
@@ -659,6 +810,7 @@ const ColorAnalyzer = () => {
       setAllColors(result.allColors);
     } catch (err) {
       setError("Failed to analyze image. Please try another image or URL.");
+      handleClearImage();
     } finally {
       setIsLoading(false);
     }
@@ -679,15 +831,18 @@ const ColorAnalyzer = () => {
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   }
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
-
   const contentRef = useRef(null);
 
   const sliderStyles = {
     trackColor: darkMode ? "#4A5568" : "#E2E8F0",
     thumbColor: themeColor,
+  };
+
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+
+  const handleCropComplete = (croppedImageUrl) => {
+    setImageUrl(croppedImageUrl);
+    analyzeImage(croppedImageUrl);
   };
 
   return (
@@ -696,250 +851,208 @@ const ColorAnalyzer = () => {
         darkMode ? "relative bg-gray-900 text-white" : "bg-white text-gray-900"
       } min-h-screen transition-colors duration-200 `}
     >
-      <div className="max-w-4xl mx-auto p-6 px-3 sm:px-4 md:px-6 space-y-6 pb-12">
-        <div className="flex align-middle my-4 px-3 gap-3">
-          <img src={Favicon} width={34} height={34} className="max-h-[34px]" />
-          <h1 className="text-2xl w-full font-semibold  text-center">
-            Image Color Analyzer
-          </h1>
+      <div className="max-w-4xl min-h-dvh mx-auto p-6 py-10 px-3 sm:px-4 md:px-6 flex flex-col">
+        <div className="flex-1 space-y-6">
+          {/* Header */}
+          <div className="flex align-middle items-center my-4 px-3 gap-3">
+            <img
+              src={Favicon}
+              width={32}
+              height={32}
+              className="max-h-[32px]"
+            />
+            <h1 className="text-2xl w-full font-semibold  text-center">
+              Image Color Analyzer
+            </h1>
 
-          <HoverMenuButton />
-        </div>
-
-        <div
-          className={`p-3 rounded-xl ${
-            darkMode ? "bg-gray-800" : "bg-gray-100"
-          } ${!showInputs && "cursor-pointer"}`}
-          onClick={() => !showInputs && setShowInputs(!showInputs)}
-        >
-          <div className="w-full flex items-center justify-between">
-            <div className="pl-1 flex items-center gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                id="Outline"
-                viewBox="0 0 24 24"
-                width="16"
-                fill={darkMode ? "#ffffff" : "#000000"}
-              >
-                <path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0ZM5,2H19a3,3,0,0,1,3,3V19a2.951,2.951,0,0,1-.3,1.285l-9.163-9.163a5,5,0,0,0-7.072,0L2,14.586V5A3,3,0,0,1,5,2ZM5,22a3,3,0,0,1-3-3V17.414l4.878-4.878a3,3,0,0,1,4.244,0L20.285,21.7A2.951,2.951,0,0,1,19,22Z" />
-                <path d="M16,10.5A3.5,3.5,0,1,0,12.5,7,3.5,3.5,0,0,0,16,10.5Zm0-5A1.5,1.5,0,1,1,14.5,7,1.5,1.5,0,0,1,16,5.5Z" />
-              </svg>
-              <h2>Upload Image</h2>
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowInputs(!showInputs);
-              }}
-              className={`w-[34px] h-[34px] flex items-center justify-center rounded-full ${
-                darkMode
-                  ? "bg-gray-700 hover:bg-gray-600"
-                  : "bg-gray-200 hover:bg-gray-300"
-              } transition-colors duration-200`}
-            >
-              <svg
-                version="1.1"
-                viewBox="0 0 26.002 45.999"
-                width="7px"
-                fill={darkMode ? "#ffffff" : "#000000"}
-                className={`transform transition-transform duration-300 ${
-                  showInputs ? "rotate-90" : "-rotate-90"
-                }`}
-              >
-                <path d="M24.998,40.094c1.338,1.352,1.338,3.541,0,4.893c-1.338,1.35-3.506,1.352-4.846,0L1.004,25.447  c-1.338-1.352-1.338-3.543,0-4.895L20.152,1.014c1.34-1.352,3.506-1.352,4.846,0c1.338,1.352,1.338,3.541,0,4.893L9.295,23  L24.998,40.094z" />
-              </svg>
-            </button>
+            <HoverMenuButton />
           </div>
 
+          {/* Inputs */}
           <div
-            ref={contentRef}
-            className={`transition-all duration-300 ease-in-out overflow-hidden ${
-              showInputs ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
-            }`}
+            className={`p-3 rounded-xl ${
+              darkMode ? "bg-gray-800" : "bg-gray-100"
+            } ${!showInputs && "cursor-pointer"}`}
+            onClick={() => !showInputs && setShowInputs(!showInputs)}
           >
-            <div className="space-y-6">
-              <form onSubmit={handleUrlSubmit} className="space-y-2">
-                <div className="flex gap-3 pt-6 flex-col min-[440px]:flex-row">
-                  <input
-                    type="url"
-                    value={urlInput}
-                    onChange={(e) => setUrlInput(e.target.value)}
-                    placeholder="Enter image URL..."
-                    className={`flex-1 p-2 border rounded ${
-                      darkMode
-                        ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
-                        : "bg-white border-gray-300 text-gray-900"
-                    }`}
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2  rounded  transition-colors duration-200"
-                    style={{ background: themeColor, color: themeTextColor }}
-                    disabled={isLoading}
-                  >
-                    Analyze URL
-                  </button>
-                </div>
-              </form>
-
-              <div
-                className="space-y-2"
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                <div className="flex items-center justify-center w-full">
-                  <label
-                    className={`bg-transparent w-full flex flex-col items-center px-4 py-6 rounded-lg cursor-pointer transition-colors duration-200 border-2 border-dashed `}
-                    style={{
-                      borderColor: isDragging
-                        ? themeColor
-                        : darkMode
-                        ? "#4b5563 "
-                        : "#d1d5db ",
-                    }}
-                    // style={{
-                    //   backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%23${
-                    //     isDragging ? "3b82f6" : darkMode ? "4b5563" : "d1d5db"
-                    //   }FF' stroke-width='3.5' stroke-dasharray='6%2c 14' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e")`,
-                    // }}
-                  >
-                    <div className="flex flex-col items-center select-none pointer-events-none">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        width="34"
-                        fill={darkMode ? "#d1d5db" : "#4b5563"}
-                      >
-                        <path d="M9,5.5c0-.83,.67-1.5,1.5-1.5s1.5,.67,1.5,1.5-.67,1.5-1.5,1.5-1.5-.67-1.5-1.5Zm15-.5v6c0,2.76-2.24,5-5,5H10c-2.76,0-5-2.24-5-5V5C5,2.24,7.24,0,10,0h9c2.76,0,5,2.24,5,5ZM7,11c0,.77,.29,1.47,.77,2.01l5.24-5.24c.98-.98,2.69-.98,3.67,0l1.04,1.04c.23,.23,.62,.23,.85,0l3.43-3.43v-.38c0-1.65-1.35-3-3-3H10c-1.65,0-3,1.35-3,3v6Zm15,0v-2.79l-2.02,2.02c-.98,.98-2.69,.98-3.67,0l-1.04-1.04c-.23-.23-.61-.23-.85,0l-4.79,4.79c.12,.02,.24,.02,.37,.02h9c1.65,0,3-1.35,3-3Zm-3.91,7.04c-.53-.15-1.08,.17-1.23,.7l-.29,1.06c-.21,.77-.71,1.42-1.41,1.81-.7,.4-1.51,.5-2.28,.29l-8.68-2.38c-1.6-.44-2.54-2.09-2.1-3.69l.96-3.56c.14-.53-.17-1.08-.7-1.23-.53-.14-1.08,.17-1.23,.7L.18,15.29c-.73,2.66,.84,5.42,3.5,6.15l8.68,2.38c.44,.12,.89,.18,1.33,.18,.86,0,1.7-.22,2.47-.66,1.16-.66,1.99-1.73,2.35-3.02l.29-1.06c.15-.53-.17-1.08-.7-1.23Z" />
-                      </svg>
-                      <span
-                        className={`mt-4 text-sm ${
-                          darkMode ? "text-gray-300" : "text-gray-600"
-                        }`}
-                      >
-                        Drag and drop image here
-                      </span>
-                      <div className="flex gap-2">
-                        <span
-                          className={`text-sm ${
-                            darkMode ? "text-gray-300" : "text-gray-600"
-                          }`}
-                        >
-                          or click to upload
-                        </span>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          id="Outline"
-                          viewBox="0 0 24 24"
-                          width="12"
-                          fill={darkMode ? "#d1d5db" : "#374151"}
-                          stroke={darkMode ? "#d1d5db" : "#374151"}
-                        >
-                          <path d="M11.007,2.578,11,18.016a1,1,0,0,0,1,1h0a1,1,0,0,0,1-1l.007-15.421,2.912,2.913a1,1,0,0,0,1.414,0h0a1,1,0,0,0,0-1.414L14.122.879a3,3,0,0,0-4.244,0L6.667,4.091a1,1,0,0,0,0,1.414h0a1,1,0,0,0,1.414,0Z" />
-                          <path d="M22,17v4a1,1,0,0,1-1,1H3a1,1,0,0,1-1-1V17a1,1,0,0,0-1-1H1a1,1,0,0,0-1,1v4a3,3,0,0,0,3,3H21a3,3,0,0,0,3-3V17a1,1,0,0,0-1-1h0A1,1,0,0,0,22,17Z" />
-                        </svg>
-                      </div>
-                      <span
-                        className={`text-sm pt-2 ${
-                          darkMode ? "text-gray-500" : "text-gray-400"
-                        }`}
-                      >
-                        .png, .jpg, .jpeg, .webp, .svg, .gif
-                      </span>
-                    </div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      className="hidden"
-                      accept="image/png, image/jpeg, image/webp, image/jpg, image/svg, image/gif"
-                      onChange={(e) => handleFileUpload(e.target.files)}
-                      disabled={isLoading}
-                    />
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div className="text-center flex flex-col gap-2">
-            <div
-              className={` p-2 rounded ${
-                darkMode ? "bg-red-900 text-white" : "bg-red-100 text-red-500"
-              } flex items-center justify-center gap-3`}
-            >
-              <svg
-                fill={darkMode ? "white" : "#ef4444"}
-                viewBox="0 0 24 24"
-                width="18"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path d="m12 14a1 1 0 0 1 -1-1v-3a1 1 0 1 1 2 0v3a1 1 0 0 1 -1 1zm-1.5 2.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1 -3 0z" />
-                <path d="m10.23 3.216c.75-1.425 2.79-1.425 3.54 0l8.343 15.852c.701 1.332-.263 2.932-1.77 2.932h-16.686c-1.505 0-2.47-1.6-1.77-2.931zm10.114 16.784-8.344-15.853-8.344 15.853z" />
-              </svg>
-              {error}
-            </div>
-            {usedURLbtn && (
-              <div
-                className={`p-2 rounded flex items-center justify-center gap-3 ${
-                  darkMode
-                    ? "bg-gray-800 text-gray-300"
-                    : "bg-gray-100 text-gray-600"
-                }`}
-              >
+            <div className=" w-full flex items-center justify-between">
+              <div className="pl-1 flex items-center gap-2">
                 <svg
-                  fill={darkMode ? "#d1d5db" : "#374151 "}
-                  width="15"
                   xmlns="http://www.w3.org/2000/svg"
                   id="Outline"
                   viewBox="0 0 24 24"
+                  width="16"
+                  fill={darkMode ? "#ffffff" : "#000000"}
                 >
-                  <path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Z" />
-                  <path d="M12,10H11a1,1,0,0,0,0,2h1v6a1,1,0,0,0,2,0V12A2,2,0,0,0,12,10Z" />
-                  <circle cx="12" cy="6.5" r="1.5" />
+                  <path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0ZM5,2H19a3,3,0,0,1,3,3V19a2.951,2.951,0,0,1-.3,1.285l-9.163-9.163a5,5,0,0,0-7.072,0L2,14.586V5A3,3,0,0,1,5,2ZM5,22a3,3,0,0,1-3-3V17.414l4.878-4.878a3,3,0,0,1,4.244,0L20.285,21.7A2.951,2.951,0,0,1,19,22Z" />
+                  <path d="M16,10.5A3.5,3.5,0,1,0,12.5,7,3.5,3.5,0,0,0,16,10.5Zm0-5A1.5,1.5,0,1,1,14.5,7,1.5,1.5,0,0,1,16,5.5Z" />
                 </svg>
-                Sometimes URLs are restricted. Try downloading the image first
-                and then uploading it.
+                <h2 className="font-medium">Upload Image</h2>
               </div>
-            )}
-          </div>
-        )}
-
-        {copyFeedback && (
-          <div className="fixed top-0 right-5 bg-gray-800 text-white px-4 py-2 rounded shadow-lg flex gap-2">
-            {CheckIcon("white", 16)} Copied {copyFeedback}
-          </div>
-        )}
-
-        {isLoading && <LoadingIndicator />}
-
-        {imageUrl && (
-          <div className="space-y-4">
-            <img
-              src={imageUrl}
-              alt="Uploaded preview"
-              className="max-w-full h-auto rounded mx-auto max-h-64 min-h-24"
-            />
-          </div>
-        )}
-
-        {allColors.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <label
-                className={`block text-sm font-medium ${
-                  darkMode ? "text-gray-300" : "text-gray-700"
-                }`}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowInputs(!showInputs);
+                }}
+                className={`w-[34px] h-[34px] flex items-center justify-center rounded-full ${
+                  darkMode
+                    ? "bg-gray-700 hover:bg-gray-600"
+                    : "bg-gray-200 hover:bg-gray-300"
+                } transition-colors duration-200`}
               >
-                Vibrancy Threshold: {(vibrancyThreshold * 100).toFixed(0)}%
-              </label>
-              <div className="relative flex items-center">
+                <svg
+                  version="1.1"
+                  viewBox="0 0 26.002 45.999"
+                  width="7px"
+                  fill={darkMode ? "#ffffff" : "#000000"}
+                  className={`transform transition-transform duration-300 ${
+                    showInputs ? "rotate-90" : "-rotate-90"
+                  }`}
+                >
+                  <path d="M24.998,40.094c1.338,1.352,1.338,3.541,0,4.893c-1.338,1.35-3.506,1.352-4.846,0L1.004,25.447  c-1.338-1.352-1.338-3.543,0-4.895L20.152,1.014c1.34-1.352,3.506-1.352,4.846,0c1.338,1.352,1.338,3.541,0,4.893L9.295,23  L24.998,40.094z" />
+                </svg>
+              </button>
+            </div>
+
+            <div
+              ref={contentRef}
+              className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                showInputs ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+              }`}
+            >
+              <div className="space-y-6">
+                <form onSubmit={handleUrlSubmit} className="space-y-2">
+                  <div className="flex gap-3 pt-6 flex-col min-[440px]:flex-row">
+                    <input
+                      type="url"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      placeholder="Enter image URL..."
+                      className={`flex-1 p-2 border rounded ${
+                        darkMode
+                          ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+                          : "bg-white border-gray-300 text-gray-900"
+                      }`}
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2  rounded  transition-colors duration-200"
+                      style={{ background: themeColor, color: themeTextColor }}
+                      disabled={isLoading}
+                    >
+                      Analyze URL
+                    </button>
+                  </div>
+                </form>
+
                 <div
-                  onMouseEnter={() => setShowTooltip(true)}
-                  onMouseLeave={() => setShowTooltip(false)}
+                  className="space-y-2"
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <div className="flex items-center justify-center w-full">
+                    <label
+                      className={`bg-transparent w-full flex flex-col items-center px-4 py-6 rounded-lg cursor-pointer transition-colors duration-200 border-2 border-dashed `}
+                      style={{
+                        borderColor: isDragging
+                          ? themeColor
+                          : darkMode
+                          ? "#4b5563 "
+                          : "#d1d5db ",
+                      }}
+                      // style={{
+                      //   backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%23${
+                      //     isDragging ? "3b82f6" : darkMode ? "4b5563" : "d1d5db"
+                      //   }FF' stroke-width='3.5' stroke-dasharray='6%2c 14' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e")`,
+                      // }}
+                    >
+                      <div className="flex flex-col items-center select-none pointer-events-none">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          width="34"
+                          fill={darkMode ? "#d1d5db" : "#4b5563"}
+                        >
+                          <path d="M9,5.5c0-.83,.67-1.5,1.5-1.5s1.5,.67,1.5,1.5-.67,1.5-1.5,1.5-1.5-.67-1.5-1.5Zm15-.5v6c0,2.76-2.24,5-5,5H10c-2.76,0-5-2.24-5-5V5C5,2.24,7.24,0,10,0h9c2.76,0,5,2.24,5,5ZM7,11c0,.77,.29,1.47,.77,2.01l5.24-5.24c.98-.98,2.69-.98,3.67,0l1.04,1.04c.23,.23,.62,.23,.85,0l3.43-3.43v-.38c0-1.65-1.35-3-3-3H10c-1.65,0-3,1.35-3,3v6Zm15,0v-2.79l-2.02,2.02c-.98,.98-2.69,.98-3.67,0l-1.04-1.04c-.23-.23-.61-.23-.85,0l-4.79,4.79c.12,.02,.24,.02,.37,.02h9c1.65,0,3-1.35,3-3Zm-3.91,7.04c-.53-.15-1.08,.17-1.23,.7l-.29,1.06c-.21,.77-.71,1.42-1.41,1.81-.7,.4-1.51,.5-2.28,.29l-8.68-2.38c-1.6-.44-2.54-2.09-2.1-3.69l.96-3.56c.14-.53-.17-1.08-.7-1.23-.53-.14-1.08,.17-1.23,.7L.18,15.29c-.73,2.66,.84,5.42,3.5,6.15l8.68,2.38c.44,.12,.89,.18,1.33,.18,.86,0,1.7-.22,2.47-.66,1.16-.66,1.99-1.73,2.35-3.02l.29-1.06c.15-.53-.17-1.08-.7-1.23Z" />
+                        </svg>
+                        <span
+                          className={`mt-4 text-sm ${
+                            darkMode ? "text-gray-300" : "text-gray-600"
+                          }`}
+                        >
+                          Drag and drop image here
+                        </span>
+                        <div className="flex gap-2">
+                          <span
+                            className={`text-sm ${
+                              darkMode ? "text-gray-300" : "text-gray-600"
+                            }`}
+                          >
+                            or click to upload
+                          </span>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            id="Outline"
+                            viewBox="0 0 24 24"
+                            width="12"
+                            fill={darkMode ? "#d1d5db" : "#374151"}
+                            stroke={darkMode ? "#d1d5db" : "#374151"}
+                          >
+                            <path d="M11.007,2.578,11,18.016a1,1,0,0,0,1,1h0a1,1,0,0,0,1-1l.007-15.421,2.912,2.913a1,1,0,0,0,1.414,0h0a1,1,0,0,0,0-1.414L14.122.879a3,3,0,0,0-4.244,0L6.667,4.091a1,1,0,0,0,0,1.414h0a1,1,0,0,0,1.414,0Z" />
+                            <path d="M22,17v4a1,1,0,0,1-1,1H3a1,1,0,0,1-1-1V17a1,1,0,0,0-1-1H1a1,1,0,0,0-1,1v4a3,3,0,0,0,3,3H21a3,3,0,0,0,3-3V17a1,1,0,0,0-1-1h0A1,1,0,0,0,22,17Z" />
+                          </svg>
+                        </div>
+                        <span
+                          className={`text-sm pt-2 ${
+                            darkMode ? "text-gray-500" : "text-gray-400"
+                          }`}
+                        >
+                          .png, .jpg, .jpeg, .webp, .svg, .gif
+                        </span>
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        accept="image/png, image/jpeg, image/webp, image/jpg, image/svg, image/gif"
+                        onChange={(e) => handleFileUpload(e.target.files)}
+                        disabled={isLoading}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="text-center flex flex-col gap-2">
+              <div
+                className={` p-2 rounded ${
+                  darkMode ? "bg-red-900 text-white" : "bg-red-100 text-red-500"
+                } flex items-center justify-center gap-3`}
+              >
+                <svg
+                  fill={darkMode ? "white" : "#ef4444"}
+                  viewBox="0 0 24 24"
+                  width="18"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path d="m12 14a1 1 0 0 1 -1-1v-3a1 1 0 1 1 2 0v3a1 1 0 0 1 -1 1zm-1.5 2.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1 -3 0z" />
+                  <path d="m10.23 3.216c.75-1.425 2.79-1.425 3.54 0l8.343 15.852c.701 1.332-.263 2.932-1.77 2.932h-16.686c-1.505 0-2.47-1.6-1.77-2.931zm10.114 16.784-8.344-15.853-8.344 15.853z" />
+                </svg>
+                {error}
+              </div>
+              {usedURLbtn && (
+                <div
+                  className={`p-2 rounded flex items-center justify-center gap-3 ${
+                    darkMode
+                      ? "bg-gray-800 text-gray-300"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
                 >
                   <svg
                     fill={darkMode ? "#d1d5db" : "#374151 "}
@@ -952,160 +1065,245 @@ const ColorAnalyzer = () => {
                     <path d="M12,10H11a1,1,0,0,0,0,2h1v6a1,1,0,0,0,2,0V12A2,2,0,0,0,12,10Z" />
                     <circle cx="12" cy="6.5" r="1.5" />
                   </svg>
+                  Sometimes URLs are restricted. Try downloading the image first
+                  and then uploading it.
                 </div>
-                {showTooltip && (
-                  <div className="flex flex-col absolute top-full mt-2 w-60 p-2 bg-gray-800 text-white text-sm rounded shadow-lg">
-                    <p>
-                      This controls how vibrant a color must be to be
-                      considered.
-                    </p>
-                    <p className="opacity-70 font-light">
-                      A higher threshold will show the most vibrant colors, even
-                      though they may be less common.
-                    </p>
+              )}
+            </div>
+          )}
+
+          {copyFeedback && (
+            <div
+              onClick={() => setCopyFeedback(false)}
+              className="cursor-default fixed top-0 right-5 bg-gray-700 bg-opacity-70 backdrop-blur-md text-white px-4 py-2 rounded shadow-lg flex gap-2"
+            >
+              {CheckIcon("white", 16)} Copied {copyFeedback}
+            </div>
+          )}
+
+          {isLoading && <LoadingIndicator />}
+
+          {/* Image */}
+          {imageUrl && (
+            <div className="flex justify-center space-y-4 ">
+              <div
+                className="relative w-fit p-3"
+                onMouseEnter={() => setIsHoveringImage(true)}
+                onMouseLeave={() => setIsHoveringImage(false)}
+              >
+                {isHoveringImage && (
+                  <div className="absolute top-5 right-5 flex gap-1">
+                    <button
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-800 hover:bg-gray-800 bg-opacity-50 backdrop-blur-md"
+                      onClick={() => setIsCropModalOpen(true)}
+                    >
+                      <img src={CropIcon} width={16} height={16} />
+                    </button>
+
+                    <button
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-800 hover:bg-gray-800 bg-opacity-50 backdrop-blur-md"
+                      onClick={handleClearImage}
+                    >
+                      <img src={CloseIcon} width={10} height={10} />
+                    </button>
                   </div>
                 )}
+
+                <img
+                  src={imageUrl}
+                  alt="Uploaded preview"
+                  className="max-w-full h-auto rounded mx-auto max-h-64 min-h-24"
+                />
               </div>
             </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={vibrancyThreshold}
-              onChange={(e) => setVibrancyThreshold(parseFloat(e.target.value))}
-              style={{
-                // width: "100%",
-                // height: "8px",
-                background: sliderStyles.trackColor,
-                // borderRadius: "10px",
-                // WebkitAppearance: "none",
-              }}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer custom-slider"
-            />
+          )}
 
-            <style jsx>{`
-              .custom-slider::-webkit-slider-thumb {
-                appearance: none;
-                background: ${sliderStyles.thumbColor};
-                border: 3px solid ${darkMode ? "#111827" : "#ffffff"};
-                height: 20px;
-                width: 20px;
-                border-radius: 50%;
-                cursor: pointer;
-                transition-property: background;
-                transition-duration: 0.3s;
-              }
-
-              .custom-slider::-webkit-slider-runnable-track {
-                // border-radius: 10px;
-              }
-            `}</style>
-          </div>
-        )}
-
-        {imageUrl && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Dominant colors:</h2>
-              <h2
-                className={`text-sm ${
-                  darkMode ? "text-gray-300" : "text-gray-700"
-                } `}
-              >
-                Click colors to copy
-              </h2>
-            </div>
-            {!error && distinctColors.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
-                {distinctColors.map((color, index) => (
-                  <div
-                    key={index}
-                    className="py-4 text-sm rounded flex flex-col gap-1 items-center justify-center"
-                    style={{
-                      backgroundColor: color,
-                      color: textColors[index],
-                    }}
-                  >
-                    <button
-                      onClick={() => handleCopyColor(rgbToHex(color))}
-                      className="flex flex-col hover:scale-105 focus:outline-none transition-transform"
-                    >
-                      <p>{rgbToHex(color)}</p>
-                    </button>
-                    <button
-                      onClick={() => handleCopyColor(color)}
-                      className="flex flex-col hover:scale-105 focus:outline-none transition-transform"
-                    >
-                      <p>{color}</p>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {distinctColors.length === 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
-                <div
-                  className={`py-4 text-sm rounded flex flex-col gap-1 items-center justify-center ${
-                    darkMode ? "bg-gray-800 " : "bg-gray-100 "
-                  } `}
+          {/* Vibrancy Slider */}
+          {allColors.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <label
+                  className={`block text-sm font-medium ${
+                    darkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
                 >
-                  <p>No colors</p>
-                  <p className="opacity-50">Try turning vibrancy down</p>
+                  Vibrancy Threshold: {(vibrancyThreshold * 100).toFixed(0)}%
+                </label>
+                <div className="relative flex items-center">
+                  <div
+                    onMouseEnter={() => setShowTooltip(true)}
+                    onMouseLeave={() => setShowTooltip(false)}
+                  >
+                    <svg
+                      fill={darkMode ? "#d1d5db" : "#374151 "}
+                      width="15"
+                      xmlns="http://www.w3.org/2000/svg"
+                      id="Outline"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Z" />
+                      <path d="M12,10H11a1,1,0,0,0,0,2h1v6a1,1,0,0,0,2,0V12A2,2,0,0,0,12,10Z" />
+                      <circle cx="12" cy="6.5" r="1.5" />
+                    </svg>
+                  </div>
+                  {showTooltip && (
+                    <div className="flex flex-col absolute top-full mt-2 w-60 p-2 bg-gray-800 text-white text-sm rounded shadow-lg">
+                      <p>
+                        This controls how vibrant a color must be to be
+                        considered.
+                      </p>
+                      <p className="opacity-70 font-light">
+                        A higher threshold will show the most vibrant colors,
+                        even though they may be less common.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={vibrancyThreshold}
+                onChange={(e) =>
+                  setVibrancyThreshold(parseFloat(e.target.value))
+                }
+                style={{
+                  // width: "100%",
+                  // height: "8px",
+                  background: sliderStyles.trackColor,
+                  // borderRadius: "10px",
+                  // WebkitAppearance: "none",
+                }}
+                className="w-full h-2 rounded-lg appearance-none cursor-pointer custom-slider"
+              />
 
-            <h2 className="text-xl font-semibold my-2">
-              Suggested Color Palette:
-            </h2>
-            {!error && colorPalette && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {Object.entries(colorPalette).map(([name, color]) => (
-                  <div key={name}>
+              <style jsx>{`
+                .custom-slider::-webkit-slider-thumb {
+                  appearance: none;
+                  background: ${sliderStyles.thumbColor};
+                  border: 3px solid ${darkMode ? "#111827" : "#ffffff"};
+                  height: 20px;
+                  width: 20px;
+                  border-radius: 50%;
+                  cursor: pointer;
+                  transition-property: background;
+                  transition-duration: 0.4s;
+                }
+
+                .custom-slider::-webkit-slider-runnable-track {
+                  // border-radius: 10px;
+                }
+              `}</style>
+            </div>
+          )}
+
+          {/* Colors */}
+          {imageUrl && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Vibrant colors:</h2>
+                <h2
+                  className={`text-sm ${
+                    darkMode ? "text-gray-300" : "text-gray-700"
+                  } `}
+                >
+                  Click colors to copy
+                </h2>
+              </div>
+              {!error && distinctColors.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
+                  {distinctColors.map((color, index) => (
                     <div
+                      key={index}
                       className="py-4 text-sm rounded flex flex-col gap-1 items-center justify-center"
                       style={{
                         backgroundColor: color,
-                        color: getTextColor(color),
+                        color: textColors[index],
                       }}
                     >
                       <button
                         onClick={() => handleCopyColor(rgbToHex(color))}
-                        className="flex flex-col hover:scale-105 focus:outline-none transition-transform"
+                        className="flex flex-col hover:underline focus:outline-none transition-transform"
                       >
                         <p>{rgbToHex(color)}</p>
                       </button>
                       <button
                         onClick={() => handleCopyColor(color)}
-                        className="flex flex-col hover:scale-105 focus:outline-none transition-transform"
+                        className="flex flex-col hover:underline focus:outline-none transition-transform"
                       >
                         <p>{color}</p>
                       </button>
                     </div>
-                    <p className="text-sm capitalize font-medium text-center mt-1">
-                      {name}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-            {!colorPalette && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
-                <div
-                  className={`py-4 text-sm rounded flex flex-col gap-1 items-center justify-center ${
-                    darkMode ? "bg-gray-800 " : "bg-gray-100 "
-                  } `}
-                >
-                  <p>No colors</p>
-                  <p className="opacity-50">Try turning vibrancy down</p>
+                  ))}
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+              {distinctColors.length === 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
+                  <div
+                    className={`py-4 text-sm rounded flex flex-col gap-1 items-center justify-center ${
+                      darkMode ? "bg-gray-800 " : "bg-gray-100 "
+                    } `}
+                  >
+                    <p>No colors</p>
+                    <p className="opacity-50">Try turning vibrancy down</p>
+                  </div>
+                </div>
+              )}
 
-        <div className="pt-10 flex flex-col items-center gap-2 ">
+              <h2 className="text-xl font-semibold my-2">
+                Suggested Color Palette:
+              </h2>
+              {!error && colorPalette && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {Object.entries(colorPalette).map(([name, color]) => (
+                    <div key={name}>
+                      <div
+                        className="py-4 text-sm rounded flex flex-col gap-1 items-center justify-center"
+                        style={{
+                          backgroundColor: color,
+                          color: getTextColor(color),
+                        }}
+                      >
+                        <button
+                          onClick={() => handleCopyColor(rgbToHex(color))}
+                          className="flex flex-col hover:underline focus:outline-none transition-transform"
+                        >
+                          <p>{rgbToHex(color)}</p>
+                        </button>
+                        <button
+                          onClick={() => handleCopyColor(color)}
+                          className="flex flex-col hover:underline focus:outline-none transition-transform"
+                        >
+                          <p>{color}</p>
+                        </button>
+                      </div>
+                      <p className="text-sm capitalize font-medium text-center mt-1">
+                        {name}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!colorPalette && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
+                  <div
+                    className={`py-4 text-sm rounded flex flex-col gap-1 items-center justify-center ${
+                      darkMode ? "bg-gray-800 " : "bg-gray-100 "
+                    } `}
+                  >
+                    <p>No colors</p>
+                    <p className="opacity-50">Try turning vibrancy down</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className=" pt-12 flex flex-col items-center gap-2 mt-auto">
           <h4
             className={` text-sm ${
               darkMode ? "text-gray-400" : "text-gray-500"
@@ -1147,6 +1345,13 @@ const ColorAnalyzer = () => {
           </div>
         </div>
       </div>
+
+      <CropModal
+        isOpen={isCropModalOpen}
+        onClose={() => setIsCropModalOpen(false)}
+        imageUrl={originalImageUrl}
+        onCropComplete={handleCropComplete}
+      />
     </div>
   );
 };

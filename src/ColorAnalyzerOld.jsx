@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import CheckIcon from "./assets/check.svg";
 import Sun from "./assets/sun.svg";
 import Moon from "./assets/moon.svg";
-import Favicon from "./assets/favicon.svg";
+import Favicon from "./assets/favicon.png";
 
 const ColorAnalyzer = () => {
   const rgbToHsl = (r, g, b) => {
