@@ -1308,81 +1308,29 @@ const ColorAnalyzer = () => {
 
           {/* Colors */}
           {imageUrl && (
-            <div className="space-y-4 pb-10">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Dominant colors:</h2>
-                <h2
-                  className={`text-sm ${
-                    darkMode ? "text-gray-300" : "text-gray-700"
-                  } `}
-                >
-                  Click colors to copy
-                </h2>
-              </div>
-              {distinctColors.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
-                  {distinctColors.map((color, index) => (
-                    <div
-                      key={index}
-                      className="py-4 text-sm rounded flex flex-col gap-1 items-center justify-center"
-                      style={{
-                        backgroundColor: color,
-                        color: textColors[index],
-                      }}
-                    >
-                      <button
-                        onClick={() => handleCopyColor(rgbToHex(color))}
-                        className="flex items-center gap-1 hover:underline focus:outline-none transition-transform group translate-x-[-8.5px]"
-                      >
-                        <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          <CopyIcon
-                            currentColor={textColors[index]}
-                            width={14}
-                          />
-                        </span>
-                        <p>{rgbToHex(color)}</p>
-                      </button>
-                      <button
-                        onClick={() => handleCopyColor(color)}
-                        className="flex items-center gap-1 hover:underline focus:outline-none transition-transform group translate-x-[-8.5px]"
-                      >
-                        <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          <CopyIcon
-                            currentColor={textColors[index]}
-                            width={14}
-                          />
-                        </span>
-                        <p>{color}</p>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {distinctColors.length === 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
-                  <div
-                    className={`py-4 text-sm rounded flex flex-col gap-1 items-center justify-center ${
-                      darkMode ? "bg-gray-800 " : "bg-gray-100 "
+            <div className="space-y-8 pb-10">
+              <div>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold pb-3">
+                    Dominant colors:
+                  </h2>
+                  <h2
+                    className={`text-sm ${
+                      darkMode ? "text-gray-300" : "text-gray-700"
                     } `}
                   >
-                    <p>No colors</p>
-                    <p className="opacity-50">Try turning vibrancy down</p>
-                  </div>
+                    Click colors to copy
+                  </h2>
                 </div>
-              )}
-
-              <h2 className="text-xl font-semibold my-2">
-                Suggested Color Palette:
-              </h2>
-              {colorPalette && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {Object.entries(colorPalette).map(([name, color]) => (
-                    <div key={name}>
+                {distinctColors.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
+                    {distinctColors.map((color, index) => (
                       <div
+                        key={index}
                         className="py-4 text-sm rounded flex flex-col gap-1 items-center justify-center"
                         style={{
                           backgroundColor: color,
-                          color: getTextColor(color),
+                          color: textColors[index],
                         }}
                       >
                         <button
@@ -1391,7 +1339,7 @@ const ColorAnalyzer = () => {
                         >
                           <span className="opacity-0 group-hover:opacity-100 transition-opacity">
                             <CopyIcon
-                              currentColor={getTextColor(color)}
+                              currentColor={textColors[index]}
                               width={14}
                             />
                           </span>
@@ -1403,32 +1351,89 @@ const ColorAnalyzer = () => {
                         >
                           <span className="opacity-0 group-hover:opacity-100 transition-opacity">
                             <CopyIcon
-                              currentColor={getTextColor(color)}
+                              currentColor={textColors[index]}
                               width={14}
                             />
                           </span>
                           <p>{color}</p>
                         </button>
                       </div>
-                      <p className="text-sm capitalize font-medium text-center mt-1">
-                        {name}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {!colorPalette && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
-                  <div
-                    className={`py-4 text-sm rounded flex flex-col gap-1 items-center justify-center ${
-                      darkMode ? "bg-gray-800 " : "bg-gray-100 "
-                    } `}
-                  >
-                    <p>No colors</p>
-                    <p className="opacity-50">Try turning vibrancy down</p>
+                    ))}
                   </div>
-                </div>
-              )}
+                )}
+                {distinctColors.length === 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
+                    <div
+                      className={`py-4 text-sm rounded flex flex-col gap-1 items-center justify-center ${
+                        darkMode ? "bg-gray-800 " : "bg-gray-100 "
+                      } `}
+                    >
+                      <p>No colors</p>
+                      <p className="opacity-50">Try turning vibrancy down</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold pb-3">
+                  Suggested Color Palette:
+                </h2>
+                {colorPalette && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {Object.entries(colorPalette).map(([name, color]) => (
+                      <div key={name}>
+                        <div
+                          className="py-4 text-sm rounded flex flex-col gap-1 items-center justify-center"
+                          style={{
+                            backgroundColor: color,
+                            color: getTextColor(color),
+                          }}
+                        >
+                          <button
+                            onClick={() => handleCopyColor(rgbToHex(color))}
+                            className="flex items-center gap-1 hover:underline focus:outline-none transition-transform group translate-x-[-8.5px]"
+                          >
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <CopyIcon
+                                currentColor={getTextColor(color)}
+                                width={14}
+                              />
+                            </span>
+                            <p>{rgbToHex(color)}</p>
+                          </button>
+                          <button
+                            onClick={() => handleCopyColor(color)}
+                            className="flex items-center gap-1 hover:underline focus:outline-none transition-transform group translate-x-[-8.5px]"
+                          >
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <CopyIcon
+                                currentColor={getTextColor(color)}
+                                width={14}
+                              />
+                            </span>
+                            <p>{color}</p>
+                          </button>
+                        </div>
+                        <p className="text-sm capitalize font-medium text-center mt-1">
+                          {name}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!colorPalette && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
+                    <div
+                      className={`py-4 text-sm rounded flex flex-col gap-1 items-center justify-center ${
+                        darkMode ? "bg-gray-800 " : "bg-gray-100 "
+                      } `}
+                    >
+                      <p>No colors</p>
+                      <p className="opacity-50">Try turning vibrancy down</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1484,181 +1489,190 @@ const ColorAnalyzer = () => {
 
             {/* Hideable content */}
             <div
-              className={`transition-all duration-300 ease-in-out overflow-hidden ${
-                showAbout ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
+              className={`grid transition-all duration-300 ease-in-out ${
+                showAbout
+                  ? "grid-rows-[1fr] opacity-100"
+                  : "grid-rows-[0fr] opacity-0"
               }`}
             >
-              <div className="pt-4 space-y-4 m-2 mt-0">
-                <p>
-                  This tool helps you analyze the dominant colors in any image.
-                  Simply upload an image and it will extract the most prominent
-                  colors, displaying them as hex codes that you can easily copy.
-                </p>
-                <p>
-                  If the colors are different than you expected, try playing
-                  with the vibrancy threshold slider.
-                </p>
-                <h2 className="text-lg font-semibold">Features:</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div
-                    className={`${
-                      darkMode ? "bg-gray-700" : "bg-gray-200"
-                    } p-4 rounded-lg`}
-                  >
-                    <div className="flex gap-2">
-                      <svg version="1.2" viewBox="0 0 144 144" width="20">
-                        <g>
+              <div className="overflow-hidden">
+                <div className="pt-4 space-y-4 m-2 mt-0">
+                  <p>
+                    This tool helps you analyze the dominant colors in any
+                    image. Simply upload an image and it will extract the most
+                    prominent colors, displaying them as hex codes that you can
+                    easily copy.
+                  </p>
+                  <p>
+                    If the colors are different than you expected, try playing
+                    with the vibrancy threshold slider.
+                  </p>
+                  <h2 className="text-lg font-semibold">Features:</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div
+                      className={`${
+                        darkMode ? "bg-gray-700" : "bg-gray-200"
+                      } p-4 rounded-lg`}
+                    >
+                      <div className="flex gap-2">
+                        <svg version="1.2" viewBox="0 0 144 144" width="20">
+                          <g>
+                            <g id="Layer_1">
+                              <path
+                                d="M144,96.3c0,24.3-19.7,44-44,44s-20.4-3.8-28-10.1c9.7-8.1,15.9-20.2,15.9-33.9s-.2-5-.6-7.4c14.5-5.4,25.4-18.2,28-33.9,16.7,6.2,28.7,22.3,28.7,41.2Z"
+                                fill="blue"
+                              />
+                              <path
+                                d="M115.3,55c-2.6,15.7-13.5,28.5-28,33.9-1.8-10.6-7.4-19.9-15.3-26.5,7.6-6.3,17.4-10.1,28-10.1s10.5,1,15.3,2.7Z"
+                                fill="#f0f"
+                              />
+                              <path
+                                d="M116,47.7c0,2.5-.2,4.9-.6,7.3-4.8-1.8-9.9-2.7-15.3-2.7-10.6,0-20.4,3.8-28,10.1-7.6-6.3-17.4-10.1-28-10.1s-10.6,1-15.3,2.7c-.4-2.4-.6-4.8-.6-7.3C28,23.4,47.7,3.8,72,3.8s44,19.7,44,44Z"
+                                fill="red"
+                              />
+                              <path
+                                d="M87.9,96.3c0,13.6-6.2,25.8-15.9,33.9-9.7-8.1-15.9-20.2-15.9-33.9s.2-5,.6-7.3c4.8,1.8,9.9,2.7,15.3,2.7s10.6-1,15.3-2.8c.4,2.4.6,4.8.6,7.4Z"
+                                fill="aqua"
+                              />
+                              <path
+                                d="M87.3,88.9c-4.8,1.8-9.9,2.8-15.3,2.8s-10.5-1-15.3-2.7c1.8-10.6,7.4-20,15.3-26.5,7.9,6.6,13.5,15.9,15.3,26.5Z"
+                                fill="#fff"
+                              />
+                              <path
+                                d="M72,62.4c-7.9,6.6-13.6,15.9-15.3,26.5-14.5-5.4-25.4-18.3-28-33.9,4.8-1.8,9.9-2.7,15.3-2.7,10.7,0,20.4,3.8,28,10.1Z"
+                                fill="#ff0"
+                              />
+                              <path
+                                d="M72,130.1c-7.6,6.3-17.4,10.1-28,10.1C19.7,140.2,0,120.6,0,96.3s11.9-35,28.6-41.2c2.6,15.7,13.5,28.5,28,33.9-.4,2.4-.6,4.8-.6,7.3,0,13.6,6.2,25.8,15.9,33.9Z"
+                                fill="lime"
+                              />
+                            </g>
+                          </g>
+                        </svg>
+                        <h2 className="text-lg font-medium">Dominant Colors</h2>
+                      </div>
+                      <p className="opacity-80 text-sm font-light">
+                        The dominant colors are up to 8 of the most prominent
+                        colors in the image. They are displayed in the order of
+                        their prominence.
+                      </p>
+                    </div>
+                    <div
+                      className={`${
+                        darkMode ? "bg-gray-700" : "bg-gray-200"
+                      } p-4 rounded-lg`}
+                    >
+                      <div className="flex gap-2">
+                        <svg version="1.2" viewBox="0 0 144 144" width="20">
+                          <g>
+                            <g id="Layer_1">
+                              <path
+                                fill={
+                                  colorPalette
+                                    ? colorPalette.primary
+                                    : themeColor
+                                }
+                                d="M35,3.3h0c17.5,0,31.7,14.2,31.7,31.7v25.2c0,3.6-2.9,6.5-6.5,6.5h-25.2c-17.5,0-31.7-14.2-31.7-31.7h0C3.3,17.5,17.5,3.3,35,3.3Z"
+                              />
+
+                              <path
+                                fill={
+                                  colorPalette
+                                    ? colorPalette.secondary
+                                    : themeColor + "dd"
+                                }
+                                d="M109,3.3h0c17.5,0,31.7,14.2,31.7,31.7h0c0,17.5-14.2,31.7-31.7,31.7h-25.2c-3.6,0-6.5-2.9-6.5-6.5v-25.2c0-17.5,14.2-31.7,31.7-31.7Z"
+                              />
+                              <path
+                                fill={
+                                  colorPalette
+                                    ? colorPalette.complementary
+                                    : themeColor + "88"
+                                }
+                                d="M35,77.3h25.2c3.6,0,6.5,2.9,6.5,6.5v25.2c0,17.5-14.2,31.7-31.7,31.7h0c-17.5,0-31.7-14.2-31.7-31.7h0c0-17.5,14.2-31.7,31.7-31.7Z"
+                              />
+                              <path
+                                fill={
+                                  colorPalette
+                                    ? colorPalette.accent
+                                    : themeColor + "55"
+                                }
+                                d="M83.8,77.3h25.2c17.5,0,31.7,14.2,31.7,31.7h0c0,17.5-14.2,31.7-31.7,31.7h0c-17.5,0-31.7-14.2-31.7-31.7v-25.2c0-3.6,2.9-6.5,6.5-6.5Z"
+                              />
+                            </g>
+                          </g>
+                        </svg>
+                        <h2 className="text-lg font-medium">
+                          Suggested Palette
+                        </h2>
+                      </div>
+                      <p className="opacity-80 text-sm font-light">
+                        The suggested palette is a list of up to 8 colors that
+                        are similar to the dominant colors. They are displayed
+                        in the order of their prominence.
+                      </p>
+                    </div>
+                    <div
+                      className={`${
+                        darkMode ? "bg-gray-700" : "bg-gray-200"
+                      } p-4 rounded-lg`}
+                    >
+                      <div className="flex gap-2">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          version="1.1"
+                          viewBox="0 0 720 720"
+                          width="20"
+                        >
                           <g id="Layer_1">
                             <path
-                              d="M144,96.3c0,24.3-19.7,44-44,44s-20.4-3.8-28-10.1c9.7-8.1,15.9-20.2,15.9-33.9s-.2-5-.6-7.4c14.5-5.4,25.4-18.2,28-33.9,16.7,6.2,28.7,22.3,28.7,41.2Z"
-                              fill="blue"
+                              fill={themeColor}
+                              d="M369.9,497.7c0,14.9-2.8,29.2-8,42.3-16.9,43.1-59,73.7-108,73.7s-91.1-30.6-108-73.7c-5.2-13.1-8-27.4-8-42.3s2.8-29.2,8-42.3c16.9-43.1,59-73.8,108-73.8s91.1,30.6,108,73.8c5.2,13.1,8,27.4,8,42.3Z"
                             />
                             <path
-                              d="M115.3,55c-2.6,15.7-13.5,28.5-28,33.9-1.8-10.6-7.4-19.9-15.3-26.5,7.6-6.3,17.4-10.1,28-10.1s10.5,1,15.3,2.7Z"
-                              fill="#f0f"
-                            />
-                            <path
-                              d="M116,47.7c0,2.5-.2,4.9-.6,7.3-4.8-1.8-9.9-2.7-15.3-2.7-10.6,0-20.4,3.8-28,10.1-7.6-6.3-17.4-10.1-28-10.1s-10.6,1-15.3,2.7c-.4-2.4-.6-4.8-.6-7.3C28,23.4,47.7,3.8,72,3.8s44,19.7,44,44Z"
-                              fill="red"
-                            />
-                            <path
-                              d="M87.9,96.3c0,13.6-6.2,25.8-15.9,33.9-9.7-8.1-15.9-20.2-15.9-33.9s.2-5,.6-7.3c4.8,1.8,9.9,2.7,15.3,2.7s10.6-1,15.3-2.8c.4,2.4.6,4.8.6,7.4Z"
-                              fill="aqua"
-                            />
-                            <path
-                              d="M87.3,88.9c-4.8,1.8-9.9,2.8-15.3,2.8s-10.5-1-15.3-2.7c1.8-10.6,7.4-20,15.3-26.5,7.9,6.6,13.5,15.9,15.3,26.5Z"
-                              fill="#fff"
-                            />
-                            <path
-                              d="M72,62.4c-7.9,6.6-13.6,15.9-15.3,26.5-14.5-5.4-25.4-18.3-28-33.9,4.8-1.8,9.9-2.7,15.3-2.7,10.7,0,20.4,3.8,28,10.1Z"
-                              fill="#ff0"
-                            />
-                            <path
-                              d="M72,130.1c-7.6,6.3-17.4,10.1-28,10.1C19.7,140.2,0,120.6,0,96.3s11.9-35,28.6-41.2c2.6,15.7,13.5,28.5,28,33.9-.4,2.4-.6,4.8-.6,7.3,0,13.6,6.2,25.8,15.9,33.9Z"
-                              fill="lime"
-                            />
-                          </g>
-                        </g>
-                      </svg>
-                      <h2 className="text-lg font-medium">Dominant Colors</h2>
-                    </div>
-                    <p className="opacity-80 text-sm font-light">
-                      The dominant colors are up to 8 of the most prominent
-                      colors in the image. They are displayed in the order of
-                      their prominence.
-                    </p>
-                  </div>
-                  <div
-                    className={`${
-                      darkMode ? "bg-gray-700" : "bg-gray-200"
-                    } p-4 rounded-lg`}
-                  >
-                    <div className="flex gap-2">
-                      <svg version="1.2" viewBox="0 0 144 144" width="20">
-                        <g>
-                          <g id="Layer_1">
-                            <path
-                              fill={
-                                colorPalette ? colorPalette.primary : themeColor
-                              }
-                              d="M35,3.3h0c17.5,0,31.7,14.2,31.7,31.7v25.2c0,3.6-2.9,6.5-6.5,6.5h-25.2c-17.5,0-31.7-14.2-31.7-31.7h0C3.3,17.5,17.5,3.3,35,3.3Z"
+                              fill={themeColor}
+                              d="M582.2,222.3c0,14.9-2.8,29.2-8,42.3-16.9,43.1-59,73.7-108,73.7s-91.1-30.6-108-73.7c-5.2-13.1-8-27.4-8-42.3s2.8-29.2,8-42.3c16.9-43.1,59-73.8,108-73.8s91.1,30.6,108,73.8c5.2,13.1,8,27.4,8,42.3Z"
                             />
 
-                            <path
-                              fill={
-                                colorPalette
-                                  ? colorPalette.secondary
-                                  : themeColor + "dd"
-                              }
-                              d="M109,3.3h0c17.5,0,31.7,14.2,31.7,31.7h0c0,17.5-14.2,31.7-31.7,31.7h-25.2c-3.6,0-6.5-2.9-6.5-6.5v-25.2c0-17.5,14.2-31.7,31.7-31.7Z"
-                            />
-                            <path
-                              fill={
-                                colorPalette
-                                  ? colorPalette.complementary
-                                  : themeColor + "88"
-                              }
-                              d="M35,77.3h25.2c3.6,0,6.5,2.9,6.5,6.5v25.2c0,17.5-14.2,31.7-31.7,31.7h0c-17.5,0-31.7-14.2-31.7-31.7h0c0-17.5,14.2-31.7,31.7-31.7Z"
-                            />
-                            <path
-                              fill={
-                                colorPalette
-                                  ? colorPalette.accent
-                                  : themeColor + "55"
-                              }
-                              d="M83.8,77.3h25.2c17.5,0,31.7,14.2,31.7,31.7h0c0,17.5-14.2,31.7-31.7,31.7h0c-17.5,0-31.7-14.2-31.7-31.7v-25.2c0-3.6,2.9-6.5,6.5-6.5Z"
-                            />
+                            <g fill={darkMode ? "white" : "black"}>
+                              <path d="M124.7,467.6c-2.2,9.7-3.4,19.7-3.4,30.1s1.2,20.4,3.4,30.1H30.1c-16.6,0-30.1-13.5-30.1-30.1s13.5-30.1,30.1-30.1h94.7Z" />
+                              <path d="M720,497.7c0,16.6-13.5,30.1-30.1,30.1h-306.9c2.2-9.7,3.4-19.7,3.4-30.1s-1.2-20.4-3.4-30.1h306.9c16.6,0,30.1,13.5,30.1,30.1Z" />
+                            </g>
+                            <g fill={darkMode ? "white" : "black"}>
+                              <path d="M337,192.2c-2.2,9.7-3.4,19.7-3.4,30.1s1.2,20.4,3.4,30.1H30.1c-16.6,0-30.1-13.5-30.1-30.1s13.5-30.1,30.1-30.1h306.9Z" />
+                              <path d="M720,222.3c0,16.6-13.5,30.1-30.1,30.1h-94.7c2.2-9.7,3.4-19.7,3.4-30.1s-1.2-20.4-3.4-30.1h94.7c16.6,0,30.1,13.5,30.1,30.1Z" />
+                            </g>
                           </g>
-                        </g>
-                      </svg>
-                      <h2 className="text-lg font-medium">Suggested Palette</h2>
+                        </svg>
+                        <h2 className="text-lg font-medium">Vibrancy Slider</h2>
+                      </div>
+                      <p className="opacity-80 text-sm font-light">
+                        The vibrancy slider controls how vibrant a color must be
+                        to be considered. A higher threshold will require more
+                        vibrant colors while a lower threshold will consider
+                        more muted colors.
+                      </p>
                     </div>
-                    <p className="opacity-80 text-sm font-light">
-                      The suggested palette is a list of up to 8 colors that are
-                      similar to the dominant colors. They are displayed in the
-                      order of their prominence.
-                    </p>
-                  </div>
-                  <div
-                    className={`${
-                      darkMode ? "bg-gray-700" : "bg-gray-200"
-                    } p-4 rounded-lg`}
-                  >
-                    <div className="flex gap-2">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        version="1.1"
-                        viewBox="0 0 720 720"
-                        width="20"
-                      >
-                        <g id="Layer_1">
-                          <path
-                            fill={themeColor}
-                            d="M369.9,497.7c0,14.9-2.8,29.2-8,42.3-16.9,43.1-59,73.7-108,73.7s-91.1-30.6-108-73.7c-5.2-13.1-8-27.4-8-42.3s2.8-29.2,8-42.3c16.9-43.1,59-73.8,108-73.8s91.1,30.6,108,73.8c5.2,13.1,8,27.4,8,42.3Z"
-                          />
-                          <path
-                            fill={themeColor}
-                            d="M582.2,222.3c0,14.9-2.8,29.2-8,42.3-16.9,43.1-59,73.7-108,73.7s-91.1-30.6-108-73.7c-5.2-13.1-8-27.4-8-42.3s2.8-29.2,8-42.3c16.9-43.1,59-73.8,108-73.8s91.1,30.6,108,73.8c5.2,13.1,8,27.4,8,42.3Z"
-                          />
-
-                          <g fill={darkMode ? "white" : "black"}>
-                            <path d="M124.7,467.6c-2.2,9.7-3.4,19.7-3.4,30.1s1.2,20.4,3.4,30.1H30.1c-16.6,0-30.1-13.5-30.1-30.1s13.5-30.1,30.1-30.1h94.7Z" />
-                            <path d="M720,497.7c0,16.6-13.5,30.1-30.1,30.1h-306.9c2.2-9.7,3.4-19.7,3.4-30.1s-1.2-20.4-3.4-30.1h306.9c16.6,0,30.1,13.5,30.1,30.1Z" />
-                          </g>
-                          <g fill={darkMode ? "white" : "black"}>
-                            <path d="M337,192.2c-2.2,9.7-3.4,19.7-3.4,30.1s1.2,20.4,3.4,30.1H30.1c-16.6,0-30.1-13.5-30.1-30.1s13.5-30.1,30.1-30.1h306.9Z" />
-                            <path d="M720,222.3c0,16.6-13.5,30.1-30.1,30.1h-94.7c2.2-9.7,3.4-19.7,3.4-30.1s-1.2-20.4-3.4-30.1h94.7c16.6,0,30.1,13.5,30.1,30.1Z" />
-                          </g>
-                        </g>
-                      </svg>
-                      <h2 className="text-lg font-medium">Vibrancy Slider</h2>
+                    <div
+                      className={`${
+                        darkMode ? "bg-gray-700" : "bg-gray-200"
+                      } p-4 rounded-lg`}
+                    >
+                      <div className="flex gap-1">
+                        <svg
+                          fill={darkMode ? "white" : "black"}
+                          width="20"
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M21 16h-3V8.56A2.56 2.56 0 0 0 15.44 6H8V3a1 1 0 0 0-2 0v3H3a1 1 0 0 0 0 2h3v7.44A2.56 2.56 0 0 0 8.56 18H16v3a1 1 0 0 0 2 0v-3h3a1 1 0 0 0 0-2zM8.56 16a.56.56 0 0 1-.56-.56V8h7.44a.56.56 0 0 1 .56.56V16z" />
+                        </svg>
+                        <h2 className="text-lg font-medium">Cropping Images</h2>
+                      </div>
+                      <p className="opacity-80 text-sm font-light">
+                        Hover over the image and click the crop button to crop
+                        the image to focus on desired area.
+                      </p>
                     </div>
-                    <p className="opacity-80 text-sm font-light">
-                      The vibrancy slider controls how vibrant a color must be
-                      to be considered. A higher threshold will require more
-                      vibrant colors while a lower threshold will consider more
-                      muted colors.
-                    </p>
-                  </div>
-                  <div
-                    className={`${
-                      darkMode ? "bg-gray-700" : "bg-gray-200"
-                    } p-4 rounded-lg`}
-                  >
-                    <div className="flex gap-1">
-                      <svg
-                        fill={darkMode ? "white" : "black"}
-                        width="20"
-                        viewBox="0 0 24 24"
-                      >
-                        <path d="M21 16h-3V8.56A2.56 2.56 0 0 0 15.44 6H8V3a1 1 0 0 0-2 0v3H3a1 1 0 0 0 0 2h3v7.44A2.56 2.56 0 0 0 8.56 18H16v3a1 1 0 0 0 2 0v-3h3a1 1 0 0 0 0-2zM8.56 16a.56.56 0 0 1-.56-.56V8h7.44a.56.56 0 0 1 .56.56V16z" />
-                      </svg>
-                      <h2 className="text-lg font-medium">Cropping Images</h2>
-                    </div>
-                    <p className="opacity-80 text-sm font-light">
-                      Hover over the image and click the crop button to crop the
-                      image to focus on desired area.
-                    </p>
                   </div>
                 </div>
               </div>
