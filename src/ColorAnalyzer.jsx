@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import Favicon from "./assets/favicon.png";
 import CheckIcon from "./components/check-icon.jsx";
-import CloseIcon from "./assets/closeIcon.svg";
+import CloseIcon from "./components/close-icon.jsx";
+import CopyIcon from "./components/copy-icon.jsx";
 import CropIcon from "./assets/cropIcon.svg";
 import Cookies from "js-cookie";
 import ReactCrop from "react-image-crop";
@@ -65,25 +66,34 @@ const ColorAnalyzer = () => {
     const imgRef = useRef(null);
 
     const getCroppedImg = () => {
-      if (!completedCrop || !imgRef.current) return;
+      // Use completedCrop if available, otherwise use initial crop values
+      const cropToUse = completedCrop || {
+        x: 0,
+        y: 0,
+        width: imgRef.current.width * 0.7,
+        height: imgRef.current.height * 0.7,
+        unit: "px",
+      };
+      console.log("cropToUse", cropToUse);
+      if (!cropToUse || !imgRef.current) return;
 
       const canvas = document.createElement("canvas");
       const scaleX = imgRef.current.naturalWidth / imgRef.current.width;
       const scaleY = imgRef.current.naturalHeight / imgRef.current.height;
-      canvas.width = completedCrop.width;
-      canvas.height = completedCrop.height;
+      canvas.width = cropToUse.width;
+      canvas.height = cropToUse.height;
       const ctx = canvas.getContext("2d");
 
       ctx.drawImage(
         imgRef.current,
-        completedCrop.x * scaleX,
-        completedCrop.y * scaleY,
-        completedCrop.width * scaleX,
-        completedCrop.height * scaleY,
+        cropToUse.x * scaleX,
+        cropToUse.y * scaleY,
+        cropToUse.width * scaleX,
+        cropToUse.height * scaleY,
         0,
         0,
-        completedCrop.width,
-        completedCrop.height
+        cropToUse.width,
+        cropToUse.height
       );
 
       return new Promise((resolve) => {
@@ -94,8 +104,8 @@ const ColorAnalyzer = () => {
     };
 
     const handleCropComplete = async () => {
-      console.log(crop);
-      if (crop.height > 20 && crop.width > 20) {
+      const cropToUse = completedCrop || crop;
+      if (cropToUse.height > 20 && cropToUse.width > 20) {
         const croppedImageUrl = await getCroppedImg();
         onCropComplete(croppedImageUrl);
         onClose();
@@ -117,9 +127,14 @@ const ColorAnalyzer = () => {
             <h2 className="text-xl font-semibold">Crop Image</h2>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-200 rounded-full"
+              className={`p-2 ${
+                darkMode ? "hover:bg-gray-700" : "hover:bg-gray-200"
+              } rounded-full`}
             >
-              <img src={CloseIcon} width={12} height={12} />
+              <CloseIcon
+                currentColor={darkMode ? "white" : "black"}
+                width={12}
+              />
             </button>
           </div>
 
@@ -203,17 +218,6 @@ const ColorAnalyzer = () => {
     );
   };
 
-  const calculateVibrancy = (color) => {
-    const [r, g, b] = color.match(/\d+/g).map(Number);
-    const [h, s, l] = rgbToHsl(r, g, b);
-
-    const grayPenalty = isGrayish(r, g, b) ? 0.3 : 1;
-    const saturationWeight = s / 100;
-    const lightnessWeight = 1 - Math.abs(l - 50) / 50;
-
-    return saturationWeight * lightnessWeight * grayPenalty;
-  };
-
   const getLuminance = (bgColor) => {
     const matches = bgColor.match(/\d+/g);
     if (!matches || matches.length !== 3) return "black";
@@ -294,6 +298,7 @@ const ColorAnalyzer = () => {
         let newWidth = img.width;
         let newHeight = img.height;
 
+        // Scale image if needed
         if (img.width > img.height) {
           if (img.width > maxDimension) {
             newWidth = maxDimension;
@@ -317,8 +322,9 @@ const ColorAnalyzer = () => {
           canvas.height
         ).data;
         const colorMap = new Map();
-        const vibrancyMap = new Map();
+        const totalPixels = imageData.length / 4;
 
+        // First pass: collect colors and their frequencies
         for (let i = 0; i < imageData.length; i += 4) {
           const r = imageData[i];
           const g = imageData[i + 1];
@@ -327,34 +333,47 @@ const ColorAnalyzer = () => {
 
           if (a === 0) continue;
 
-          const rgb = `rgb(${r},${g},${b})`;
-          colorMap.set(rgb, (colorMap.get(rgb) || 0) + 1);
+          // Moderate quantization
+          const quantizedR = Math.round(r / 16) * 16;
+          const quantizedG = Math.round(g / 16) * 16;
+          const quantizedB = Math.round(b / 16) * 16;
 
-          if (!vibrancyMap.has(rgb)) {
-            const vibrancy = calculateVibrancy(rgb);
-            vibrancyMap.set(rgb, vibrancy);
-          }
+          const rgb = `rgb(${quantizedR},${quantizedG},${quantizedB})`;
+          colorMap.set(rgb, (colorMap.get(rgb) || 0) + 1);
         }
 
-        const validColors = Array.from(colorMap.entries()).filter(([color]) => {
-          const [r, g, b] = color.match(/\d+/g).map(Number);
-          const brightness = (r + g + b) / 3;
-          return brightness > 20 && brightness < 235;
-        });
+        // Filter and analyze colors
+        const colorAnalysis = Array.from(colorMap.entries())
+          .map(([color, count]) => {
+            const [r, g, b] = color.match(/\d+/g).map(Number);
+            const [h, s, l] = rgbToHsl(r, g, b);
+            const frequency = count / totalPixels;
+            const vibrancy = calculateColorVibrancy(r, g, b, s, l);
 
-        validColors.sort((a, b) => {
-          const scoreA =
-            (colorMap.get(a[0]) / imageData.length) * vibrancyMap.get(a[0]);
-          const scoreB =
-            (colorMap.get(b[0]) / imageData.length) * vibrancyMap.get(b[0]);
-          return scoreB - scoreA;
-        });
+            return {
+              color,
+              frequency,
+              vibrancy,
+              saturation: s,
+              lightness: l,
+            };
+          })
+          .filter(({ frequency, saturation, lightness }) => {
+            // Keep colors that are either:
+            // 1. Common enough (>0.5% of image)
+            // 2. Have some saturation and aren't too light/dark
+            return (
+              frequency > 0.05 ||
+              (frequency > 0.005 &&
+                saturation > 5 &&
+                lightness > 5 &&
+                lightness < 95)
+            );
+          })
+          .sort((a, b) => b.frequency - a.frequency); // Sort by frequency first
 
         const result = {
-          allColors: validColors.map(([color]) => ({
-            color,
-            vibrancy: vibrancyMap.get(color),
-          })),
+          allColors: colorAnalysis,
           dimensions: {
             original: { width: img.width, height: img.height },
             resized: { width: newWidth, height: newHeight },
@@ -370,6 +389,15 @@ const ColorAnalyzer = () => {
 
       img.src = imageUrl;
     });
+  };
+
+  const calculateColorVibrancy = (r, g, b, s, l) => {
+    // Simplified vibrancy calculation
+    const saturationFactor = s / 100;
+    const lightnessFactor = 1 - Math.abs((l - 50) / 50);
+    const grayFactor = isGrayish(r, g, b) ? 0.3 : 1;
+
+    return saturationFactor * lightnessFactor * grayFactor;
   };
 
   const generateColorPalette = (dominantColors) => {
@@ -494,19 +522,21 @@ const ColorAnalyzer = () => {
   const [error, setError] = useState("");
   const [usedURLbtn, setUsedURLbtn] = useState(false);
   const [allColors, setAllColors] = useState([]);
-  const [vibrancyThreshold, setVibrancyThreshold] = useState(0.2);
+  const [vibrancyThreshold, setVibrancyThreshold] = useState(0.35);
   const [isDragging, setIsDragging] = useState(false);
   const [isHoveringImage, setIsHoveringImage] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState("");
   const fileInputRef = useRef(null);
   const [showTooltip, setShowTooltip] = useState(false);
   const [showInputs, setShowInputs] = useState(true);
+  const [showAbout, setShowAbout] = useState(true);
   const [themePanelOpen, setThemePanelOpen] = useState(false);
   const [themeColor, setThemeColor] = useState("#3b82f6");
   const [copyTimeout, setCopyTimeout] = useState(null);
   const [themeTextColor, setThemeTextColor] = useState(
     getTextColor(themeColor)
   );
+  const [showVibrancyTip, setShowVibrancyTip] = useState(false);
 
   const [darkMode, setDarkMode] = useState(false);
   const [systemMode, setSystemMode] = useState(true);
@@ -638,9 +668,12 @@ const ColorAnalyzer = () => {
                 <path d="m19.2 24.8c.7.8 1.8 1.2 2.8 1.2s2-.4 2.8-1.2c1.6-1.6 1.6-4.1 0-5.7l-5.8-5.8c-1.6-1.6-4.1-1.6-5.7 0s-1.6 4.1 0 5.7z" />
               </svg>
               Light
-              {!darkMode &&
-                !systemMode &&
-                CheckIcon(darkMode ? "white" : "black", 10)}
+              {!darkMode && !systemMode && (
+                <CheckIcon
+                  currentColor={darkMode ? "white" : "black"}
+                  width={10}
+                />
+              )}
             </button>
             <button
               className={`flex items-center gap-2 w-full px-4 py-2 text-left ${
@@ -659,9 +692,12 @@ const ColorAnalyzer = () => {
                 <path d="M15,24a12.021,12.021,0,0,1-8.914-3.966,11.9,11.9,0,0,1-3.02-9.309A12.122,12.122,0,0,1,13.085.152a13.061,13.061,0,0,1,5.031.205,2.5,2.5,0,0,1,1.108,4.226c-4.56,4.166-4.164,10.644.807,14.41a2.5,2.5,0,0,1-.7,4.32A13.894,13.894,0,0,1,15,24Zm.076-22a10.793,10.793,0,0,0-1.677.127,10.093,10.093,0,0,0-8.344,8.8A9.927,9.927,0,0,0,7.572,18.7,10.476,10.476,0,0,0,18.664,21.43a.5.5,0,0,0,.139-.857c-5.929-4.478-6.4-12.486-.948-17.449a.459.459,0,0,0,.128-.466.49.49,0,0,0-.356-.361A10.657,10.657,0,0,0,15.076,2Z" />
               </svg>
               Dark
-              {darkMode &&
-                !systemMode &&
-                CheckIcon(darkMode ? "white" : "black", 10)}
+              {darkMode && !systemMode && (
+                <CheckIcon
+                  currentColor={darkMode ? "white" : "black"}
+                  width={10}
+                />
+              )}
             </button>
             <button
               className={`flex items-center gap-2 w-full px-4 py-2 text-left ${
@@ -679,7 +715,12 @@ const ColorAnalyzer = () => {
                 <path d="M19,1H5A5.006,5.006,0,0,0,0,6v8a5.006,5.006,0,0,0,5,5h6v2H7a1,1,0,0,0,0,2H17a1,1,0,0,0,0-2H13V19h6a5.006,5.006,0,0,0,5-5V6A5.006,5.006,0,0,0,19,1ZM5,3H19a3,3,0,0,1,3,3v7H2V6A3,3,0,0,1,5,3ZM19,17H5a3,3,0,0,1-2.816-2H21.816A3,3,0,0,1,19,17Z" />
               </svg>
               System
-              {systemMode && CheckIcon(darkMode ? "white" : "black", 10)}
+              {systemMode && (
+                <CheckIcon
+                  currentColor={darkMode ? "white" : "black"}
+                  width={10}
+                />
+              )}
             </button>
           </div>
         )}
@@ -689,6 +730,7 @@ const ColorAnalyzer = () => {
 
   const filteredColors = allColors
     .filter(({ vibrancy }) => vibrancy >= vibrancyThreshold)
+    .sort((a, b) => b.frequency - a.frequency)
     .map(({ color }) => color)
     .slice(0, 20);
 
@@ -712,6 +754,7 @@ const ColorAnalyzer = () => {
       setOriginalImageUrl(urlInput); // Store original
       setImageUrl(urlInput);
       setShowInputs(false);
+      setVibrancyThreshold(0.35);
       analyzeImage(urlInput);
     }
   };
@@ -726,6 +769,7 @@ const ColorAnalyzer = () => {
         setOriginalImageUrl(reader.result); // Store original
         setImageUrl(reader.result);
         setShowInputs(false);
+        setVibrancyThreshold(0.35);
         analyzeImage(reader.result);
       };
       reader.readAsDataURL(file);
@@ -743,6 +787,7 @@ const ColorAnalyzer = () => {
     setShowInputs(true);
     setThemeColor("#3b82f6");
     setThemeTextColor("#ffffff");
+    setVibrancyThreshold(0.35);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -793,7 +838,6 @@ const ColorAnalyzer = () => {
     }
   };
 
-  // Clean up timeout on unmount
   useEffect(() => {
     return () => {
       if (copyTimeout) {
@@ -802,10 +846,48 @@ const ColorAnalyzer = () => {
     };
   }, [copyTimeout]);
 
+  useEffect(() => {
+    const hasSeenTip = Cookies.get("hasSeenVibrancyTip");
+    if (!hasSeenTip && allColors.length > 0) {
+      setShowVibrancyTip(true);
+      Cookies.set("hasSeenVibrancyTip", "true", { expires: 365 });
+    }
+  }, [allColors]);
+
   const analyzeImage = async (url) => {
     setIsLoading(true);
     setError("");
+
+    const analyzeWithThreshold = async (threshold) => {
+      try {
+        const result = await analyzeDominantColors(url);
+        const colors = result.allColors
+          .filter(({ vibrancy }) => vibrancy >= threshold)
+          .sort((a, b) => b.frequency - a.frequency)
+          .map(({ color }) => color)
+          .slice(0, 20);
+
+        const distinctColors = filterSimilarColors(colors);
+        return distinctColors;
+      } catch (err) {
+        throw err;
+      }
+    };
+
     try {
+      let currentThreshold = vibrancyThreshold;
+      let distinctColors = await analyzeWithThreshold(currentThreshold);
+
+      // If no colors found, gradually decrease threshold until we find some
+      while (distinctColors.length === 0 && currentThreshold > 0) {
+        currentThreshold = Math.max(0, currentThreshold - 0.05);
+        distinctColors = await analyzeWithThreshold(currentThreshold);
+      }
+
+      if (currentThreshold !== vibrancyThreshold) {
+        setVibrancyThreshold(currentThreshold);
+      }
+
       const result = await analyzeDominantColors(url);
       setAllColors(result.allColors);
     } catch (err) {
@@ -831,8 +913,6 @@ const ColorAnalyzer = () => {
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   }
 
-  const contentRef = useRef(null);
-
   const sliderStyles = {
     trackColor: darkMode ? "#4A5568" : "#E2E8F0",
     thumbColor: themeColor,
@@ -852,7 +932,7 @@ const ColorAnalyzer = () => {
       } min-h-screen transition-colors duration-200 `}
     >
       <div className="max-w-4xl min-h-dvh mx-auto p-6 py-10 px-3 sm:px-4 md:px-6 flex flex-col">
-        <div className="flex-1 space-y-6">
+        <div className="flex-1 space-y-6 ">
           {/* Header */}
           <div className="flex align-middle items-center my-4 px-3 gap-3">
             <img
@@ -906,7 +986,7 @@ const ColorAnalyzer = () => {
                   width="7px"
                   fill={darkMode ? "#ffffff" : "#000000"}
                   className={`transform transition-transform duration-300 ${
-                    showInputs ? "rotate-90" : "-rotate-90"
+                    showInputs ? "rotate-90" : "-rotate-90 translate-y-[1px]"
                   }`}
                 >
                   <path d="M24.998,40.094c1.338,1.352,1.338,3.541,0,4.893c-1.338,1.35-3.506,1.352-4.846,0L1.004,25.447  c-1.338-1.352-1.338-3.543,0-4.895L20.152,1.014c1.34-1.352,3.506-1.352,4.846,0c1.338,1.352,1.338,3.541,0,4.893L9.295,23  L24.998,40.094z" />
@@ -915,7 +995,7 @@ const ColorAnalyzer = () => {
             </div>
 
             <div
-              ref={contentRef}
+              // ref={contentRef}
               className={`transition-all duration-300 ease-in-out overflow-hidden ${
                 showInputs ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
               }`}
@@ -1077,7 +1157,8 @@ const ColorAnalyzer = () => {
               onClick={() => setCopyFeedback(false)}
               className="cursor-default fixed top-0 right-5 bg-gray-700 bg-opacity-70 backdrop-blur-md text-white px-4 py-2 rounded shadow-lg flex gap-2"
             >
-              {CheckIcon("white", 16)} Copied {copyFeedback}
+              <CheckIcon currentColor={"white"} width={15} /> Copied{" "}
+              {copyFeedback}
             </div>
           )}
 
@@ -1094,17 +1175,17 @@ const ColorAnalyzer = () => {
                 {isHoveringImage && (
                   <div className="absolute top-5 right-5 flex gap-1">
                     <button
-                      className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-800 hover:bg-gray-800 bg-opacity-50 backdrop-blur-md"
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-800 hover:bg-opacity-70 bg-opacity-50 backdrop-blur-md transition-all ease-linear duration-75"
                       onClick={() => setIsCropModalOpen(true)}
                     >
                       <img src={CropIcon} width={16} height={16} />
                     </button>
 
                     <button
-                      className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-800 hover:bg-gray-800 bg-opacity-50 backdrop-blur-md"
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-800 hover:bg-opacity-70 bg-opacity-50 backdrop-blur-md transition-all ease-linear duration-75"
                       onClick={handleClearImage}
                     >
-                      <img src={CloseIcon} width={10} height={10} />
+                      <CloseIcon currentColor={"white"} width={10} />
                     </button>
                   </div>
                 )}
@@ -1112,7 +1193,7 @@ const ColorAnalyzer = () => {
                 <img
                   src={imageUrl}
                   alt="Uploaded preview"
-                  className="max-w-full h-auto rounded mx-auto max-h-64 min-h-24"
+                  className="max-w-full h-auto rounded mx-auto max-h-64 min-h-32"
                 />
               </div>
             </div>
@@ -1147,19 +1228,20 @@ const ColorAnalyzer = () => {
                     </svg>
                   </div>
                   {showTooltip && (
-                    <div className="flex flex-col absolute top-full mt-2 w-60 p-2 bg-gray-800 text-white text-sm rounded shadow-lg">
+                    <div className="z-10 flex flex-col absolute top-full mt-2 w-60 p-2 bg-gray-800 text-white text-sm rounded shadow-lg">
                       <p>
                         This controls how vibrant a color must be to be
                         considered.
                       </p>
                       <p className="opacity-70 font-light">
-                        A higher threshold will show the most vibrant colors,
-                        even though they may be less common.
+                        i.e. the higher the threshold, the more vibrant colors
+                        must be.
                       </p>
                     </div>
                   )}
                 </div>
               </div>
+
               <input
                 type="range"
                 min="0"
@@ -1196,14 +1278,31 @@ const ColorAnalyzer = () => {
                   // border-radius: 10px;
                 }
               `}</style>
+
+              {showVibrancyTip && (
+                <div className={`pt-4 flex items-center justify-center`}>
+                  <div className={` flex items-center gap-3 animate-fade-in`}>
+                    <span className="text-sm opacity-60">
+                      ↑ Try changing the vibrancy threshold to get different
+                      results
+                    </span>
+                    <button onClick={() => setShowVibrancyTip(false)}>
+                      <CloseIcon
+                        currentColor={darkMode ? "white" : "black"}
+                        width={9}
+                      />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* Colors */}
           {imageUrl && (
-            <div className="space-y-4">
+            <div className="space-y-4 pb-10">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Vibrant colors:</h2>
+                <h2 className="text-xl font-semibold">Dominant colors:</h2>
                 <h2
                   className={`text-sm ${
                     darkMode ? "text-gray-300" : "text-gray-700"
@@ -1225,14 +1324,26 @@ const ColorAnalyzer = () => {
                     >
                       <button
                         onClick={() => handleCopyColor(rgbToHex(color))}
-                        className="flex flex-col hover:underline focus:outline-none transition-transform"
+                        className="flex items-center gap-1 hover:underline focus:outline-none transition-transform group translate-x-[-8.5px]"
                       >
+                        <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <CopyIcon
+                            currentColor={textColors[index]}
+                            width={14}
+                          />
+                        </span>
                         <p>{rgbToHex(color)}</p>
                       </button>
                       <button
                         onClick={() => handleCopyColor(color)}
-                        className="flex flex-col hover:underline focus:outline-none transition-transform"
+                        className="flex items-center gap-1 hover:underline focus:outline-none transition-transform group translate-x-[-8.5px]"
                       >
+                        <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <CopyIcon
+                            currentColor={textColors[index]}
+                            width={14}
+                          />
+                        </span>
                         <p>{color}</p>
                       </button>
                     </div>
@@ -1268,14 +1379,26 @@ const ColorAnalyzer = () => {
                       >
                         <button
                           onClick={() => handleCopyColor(rgbToHex(color))}
-                          className="flex flex-col hover:underline focus:outline-none transition-transform"
+                          className="flex items-center gap-1 hover:underline focus:outline-none transition-transform group translate-x-[-8.5px]"
                         >
+                          <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <CopyIcon
+                              currentColor={getTextColor(color)}
+                              width={14}
+                            />
+                          </span>
                           <p>{rgbToHex(color)}</p>
                         </button>
                         <button
                           onClick={() => handleCopyColor(color)}
-                          className="flex flex-col hover:underline focus:outline-none transition-transform"
+                          className="flex items-center gap-1 hover:underline focus:outline-none transition-transform group translate-x-[-8.5px]"
                         >
+                          <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <CopyIcon
+                              currentColor={getTextColor(color)}
+                              width={14}
+                            />
+                          </span>
                           <p>{color}</p>
                         </button>
                       </div>
@@ -1300,6 +1423,238 @@ const ColorAnalyzer = () => {
               )}
             </div>
           )}
+
+          {/* About */}
+          <div
+            className={`p-3 rounded-xl ${
+              darkMode ? "bg-gray-800" : "bg-gray-100"
+            } `}
+          >
+            {/* Title */}
+            <div
+              className=" w-full flex items-center justify-between cursor-pointer"
+              onClick={() => setShowAbout(!showAbout)}
+            >
+              <div className="flex items-center gap-2">
+                <svg
+                  fill={darkMode ? "white" : "black"}
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                  id="Outline"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Z" />
+                  <path d="M12,10H11a1,1,0,0,0,0,2h1v6a1,1,0,0,0,2,0V12A2,2,0,0,0,12,10Z" />
+                  <circle cx="12" cy="6.5" r="1.5" />
+                </svg>
+                <h2 className={`font-medium `}>How to Use</h2>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowAbout(!showAbout);
+                }}
+                className={`w-[34px] h-[34px] flex items-center justify-center rounded-full ${
+                  darkMode
+                    ? "bg-gray-700 hover:bg-gray-600"
+                    : "bg-gray-200 hover:bg-gray-300"
+                } transition-colors duration-200`}
+              >
+                <svg
+                  version="1.1"
+                  viewBox="0 0 26.002 45.999"
+                  width="7px"
+                  fill={darkMode ? "#d1d5db" : "#374151 "}
+                  className={`transform transition-transform duration-300 ${
+                    showAbout ? "rotate-90" : "-rotate-90 translate-y-[1px]"
+                  }`}
+                >
+                  <path d="M24.998,40.094c1.338,1.352,1.338,3.541,0,4.893c-1.338,1.35-3.506,1.352-4.846,0L1.004,25.447  c-1.338-1.352-1.338-3.543,0-4.895L20.152,1.014c1.34-1.352,3.506-1.352,4.846,0c1.338,1.352,1.338,3.541,0,4.893L9.295,23  L24.998,40.094z" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Hideable content */}
+            <div
+              className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                showAbout ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
+              }`}
+            >
+              <div className="pt-4 space-y-4 m-2 mt-0">
+                <p>
+                  This tool helps you analyze the dominant colors in any image.
+                  Simply upload an image and it will extract the most prominent
+                  colors, displaying them as hex codes that you can easily copy.
+                </p>
+                <p>
+                  If the colors are different than you expected, try playing
+                  with the vibrancy threshold slider.
+                </p>
+                <h2 className="text-lg font-semibold">Features:</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div
+                    className={`${
+                      darkMode ? "bg-gray-700" : "bg-gray-200"
+                    } p-4 rounded-lg`}
+                  >
+                    <div className="flex gap-2">
+                      <svg version="1.2" viewBox="0 0 144 144" width="20">
+                        <g>
+                          <g id="Layer_1">
+                            <path
+                              d="M144,96.3c0,24.3-19.7,44-44,44s-20.4-3.8-28-10.1c9.7-8.1,15.9-20.2,15.9-33.9s-.2-5-.6-7.4c14.5-5.4,25.4-18.2,28-33.9,16.7,6.2,28.7,22.3,28.7,41.2Z"
+                              fill="blue"
+                            />
+                            <path
+                              d="M115.3,55c-2.6,15.7-13.5,28.5-28,33.9-1.8-10.6-7.4-19.9-15.3-26.5,7.6-6.3,17.4-10.1,28-10.1s10.5,1,15.3,2.7Z"
+                              fill="#f0f"
+                            />
+                            <path
+                              d="M116,47.7c0,2.5-.2,4.9-.6,7.3-4.8-1.8-9.9-2.7-15.3-2.7-10.6,0-20.4,3.8-28,10.1-7.6-6.3-17.4-10.1-28-10.1s-10.6,1-15.3,2.7c-.4-2.4-.6-4.8-.6-7.3C28,23.4,47.7,3.8,72,3.8s44,19.7,44,44Z"
+                              fill="red"
+                            />
+                            <path
+                              d="M87.9,96.3c0,13.6-6.2,25.8-15.9,33.9-9.7-8.1-15.9-20.2-15.9-33.9s.2-5,.6-7.3c4.8,1.8,9.9,2.7,15.3,2.7s10.6-1,15.3-2.8c.4,2.4.6,4.8.6,7.4Z"
+                              fill="aqua"
+                            />
+                            <path
+                              d="M87.3,88.9c-4.8,1.8-9.9,2.8-15.3,2.8s-10.5-1-15.3-2.7c1.8-10.6,7.4-20,15.3-26.5,7.9,6.6,13.5,15.9,15.3,26.5Z"
+                              fill="#fff"
+                            />
+                            <path
+                              d="M72,62.4c-7.9,6.6-13.6,15.9-15.3,26.5-14.5-5.4-25.4-18.3-28-33.9,4.8-1.8,9.9-2.7,15.3-2.7,10.7,0,20.4,3.8,28,10.1Z"
+                              fill="#ff0"
+                            />
+                            <path
+                              d="M72,130.1c-7.6,6.3-17.4,10.1-28,10.1C19.7,140.2,0,120.6,0,96.3s11.9-35,28.6-41.2c2.6,15.7,13.5,28.5,28,33.9-.4,2.4-.6,4.8-.6,7.3,0,13.6,6.2,25.8,15.9,33.9Z"
+                              fill="lime"
+                            />
+                          </g>
+                        </g>
+                      </svg>
+                      <h2 className="text-lg font-medium">Dominant Colors</h2>
+                    </div>
+                    <p className="opacity-80 text-sm font-light">
+                      The dominant colors are up to 8 of the most prominent
+                      colors in the image. They are displayed in the order of
+                      their prominence.
+                    </p>
+                  </div>
+                  <div
+                    className={`${
+                      darkMode ? "bg-gray-700" : "bg-gray-200"
+                    } p-4 rounded-lg`}
+                  >
+                    <div className="flex gap-2">
+                      <svg version="1.2" viewBox="0 0 144 144" width="20">
+                        <g>
+                          <g id="Layer_1">
+                            <path
+                              fill={
+                                colorPalette ? colorPalette.primary : themeColor
+                              }
+                              d="M35,3.3h0c17.5,0,31.7,14.2,31.7,31.7v25.2c0,3.6-2.9,6.5-6.5,6.5h-25.2c-17.5,0-31.7-14.2-31.7-31.7h0C3.3,17.5,17.5,3.3,35,3.3Z"
+                            />
+
+                            <path
+                              fill={
+                                colorPalette
+                                  ? colorPalette.secondary
+                                  : themeColor + "dd"
+                              }
+                              d="M109,3.3h0c17.5,0,31.7,14.2,31.7,31.7h0c0,17.5-14.2,31.7-31.7,31.7h-25.2c-3.6,0-6.5-2.9-6.5-6.5v-25.2c0-17.5,14.2-31.7,31.7-31.7Z"
+                            />
+                            <path
+                              fill={
+                                colorPalette
+                                  ? colorPalette.complementary
+                                  : themeColor + "88"
+                              }
+                              d="M35,77.3h25.2c3.6,0,6.5,2.9,6.5,6.5v25.2c0,17.5-14.2,31.7-31.7,31.7h0c-17.5,0-31.7-14.2-31.7-31.7h0c0-17.5,14.2-31.7,31.7-31.7Z"
+                            />
+                            <path
+                              fill={
+                                colorPalette
+                                  ? colorPalette.accent
+                                  : themeColor + "55"
+                              }
+                              d="M83.8,77.3h25.2c17.5,0,31.7,14.2,31.7,31.7h0c0,17.5-14.2,31.7-31.7,31.7h0c-17.5,0-31.7-14.2-31.7-31.7v-25.2c0-3.6,2.9-6.5,6.5-6.5Z"
+                            />
+                          </g>
+                        </g>
+                      </svg>
+                      <h2 className="text-lg font-medium">Suggested Palette</h2>
+                    </div>
+                    <p className="opacity-80 text-sm font-light">
+                      The suggested palette is a list of up to 8 colors that are
+                      similar to the dominant colors. They are displayed in the
+                      order of their prominence.
+                    </p>
+                  </div>
+                  <div
+                    className={`${
+                      darkMode ? "bg-gray-700" : "bg-gray-200"
+                    } p-4 rounded-lg`}
+                  >
+                    <div className="flex gap-2">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        version="1.1"
+                        viewBox="0 0 720 720"
+                        width="20"
+                      >
+                        <g id="Layer_1">
+                          <path
+                            fill={themeColor}
+                            d="M369.9,497.7c0,14.9-2.8,29.2-8,42.3-16.9,43.1-59,73.7-108,73.7s-91.1-30.6-108-73.7c-5.2-13.1-8-27.4-8-42.3s2.8-29.2,8-42.3c16.9-43.1,59-73.8,108-73.8s91.1,30.6,108,73.8c5.2,13.1,8,27.4,8,42.3Z"
+                          />
+                          <path
+                            fill={themeColor}
+                            d="M582.2,222.3c0,14.9-2.8,29.2-8,42.3-16.9,43.1-59,73.7-108,73.7s-91.1-30.6-108-73.7c-5.2-13.1-8-27.4-8-42.3s2.8-29.2,8-42.3c16.9-43.1,59-73.8,108-73.8s91.1,30.6,108,73.8c5.2,13.1,8,27.4,8,42.3Z"
+                          />
+                          <g>
+                            <path d="M124.7,467.6c-2.2,9.7-3.4,19.7-3.4,30.1s1.2,20.4,3.4,30.1H30.1c-16.6,0-30.1-13.5-30.1-30.1s13.5-30.1,30.1-30.1h94.7Z" />
+                            <path d="M720,497.7c0,16.6-13.5,30.1-30.1,30.1h-306.9c2.2-9.7,3.4-19.7,3.4-30.1s-1.2-20.4-3.4-30.1h306.9c16.6,0,30.1,13.5,30.1,30.1Z" />
+                          </g>
+                          <g>
+                            <path d="M337,192.2c-2.2,9.7-3.4,19.7-3.4,30.1s1.2,20.4,3.4,30.1H30.1c-16.6,0-30.1-13.5-30.1-30.1s13.5-30.1,30.1-30.1h306.9Z" />
+                            <path d="M720,222.3c0,16.6-13.5,30.1-30.1,30.1h-94.7c2.2-9.7,3.4-19.7,3.4-30.1s-1.2-20.4-3.4-30.1h94.7c16.6,0,30.1,13.5,30.1,30.1Z" />
+                          </g>
+                        </g>
+                      </svg>
+                      <h2 className="text-lg font-medium">Vibrancy Slider</h2>
+                    </div>
+                    <p className="opacity-80 text-sm font-light">
+                      The vibrancy slider controls how vibrant a color must be
+                      to be considered. A higher threshold will require more
+                      vibrant colors while a lower threshold will consider more
+                      muted colors.
+                    </p>
+                  </div>
+                  <div
+                    className={`${
+                      darkMode ? "bg-gray-700" : "bg-gray-200"
+                    } p-4 rounded-lg`}
+                  >
+                    <div className="flex gap-1">
+                      <svg
+                        fill={darkMode ? "white" : "black"}
+                        width="20"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M21 16h-3V8.56A2.56 2.56 0 0 0 15.44 6H8V3a1 1 0 0 0-2 0v3H3a1 1 0 0 0 0 2h3v7.44A2.56 2.56 0 0 0 8.56 18H16v3a1 1 0 0 0 2 0v-3h3a1 1 0 0 0 0-2zM8.56 16a.56.56 0 0 1-.56-.56V8h7.44a.56.56 0 0 1 .56.56V16z" />
+                      </svg>
+                      <h2 className="text-lg font-medium">Cropping Images</h2>
+                    </div>
+                    <p className="opacity-80 text-sm font-light">
+                      Hover over the image and click the crop button to crop the
+                      image to focus on desired area.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

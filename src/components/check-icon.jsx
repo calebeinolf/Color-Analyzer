@@ -1,4 +1,4 @@
-const CheckIcon = (currentColor, width) => {
+const CheckIcon = ({ currentColor, width }) => {
   return (
     <svg
       fill={currentColor}
