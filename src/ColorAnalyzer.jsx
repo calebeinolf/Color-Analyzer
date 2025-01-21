@@ -359,12 +359,9 @@ const ColorAnalyzer = () => {
             };
           })
           .filter(({ frequency, saturation, lightness }) => {
-            // Keep colors that are either:
-            // 1. Common enough (>0.5% of image)
-            // 2. Have some saturation and aren't too light/dark
             return (
               frequency > 0.05 ||
-              (frequency > 0.005 &&
+              (frequency > 0.0005 &&
                 saturation > 5 &&
                 lightness > 5 &&
                 lightness < 95)
@@ -752,16 +749,14 @@ const ColorAnalyzer = () => {
     if (urlInput.trim()) {
       setUsedURLbtn(true);
       setOriginalImageUrl(urlInput); // Store original
-      setImageUrl(urlInput);
-      setShowInputs(false);
-      setVibrancyThreshold(0.35);
+      // setImageUrl(urlInput);
       analyzeImage(urlInput);
     }
   };
 
   const handleFileUpload = (files) => {
     const file = files[0];
-    if (file && file.type.startsWith("image/")) {
+    if (files && file.type.startsWith("image/")) {
       setUsedURLbtn(false);
       setUrlInput("");
       const reader = new FileReader();
@@ -857,6 +852,19 @@ const ColorAnalyzer = () => {
   const analyzeImage = async (url) => {
     setIsLoading(true);
     setError("");
+
+    try {
+      const response = await fetch(url);
+    } catch (err) {
+      setError("Error getting image from URL");
+      setIsLoading(false);
+      return;
+    }
+
+    setImageUrl(url);
+    setShowInputs(false);
+    setVibrancyThreshold(0.35);
+    setUsedURLbtn(false);
 
     const analyzeWithThreshold = async (threshold) => {
       try {
@@ -1311,7 +1319,7 @@ const ColorAnalyzer = () => {
                   Click colors to copy
                 </h2>
               </div>
-              {!error && distinctColors.length > 0 && (
+              {distinctColors.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 ">
                   {distinctColors.map((color, index) => (
                     <div
@@ -1366,7 +1374,7 @@ const ColorAnalyzer = () => {
               <h2 className="text-xl font-semibold my-2">
                 Suggested Color Palette:
               </h2>
-              {!error && colorPalette && (
+              {colorPalette && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {Object.entries(colorPalette).map(([name, color]) => (
                     <div key={name}>
@@ -1612,11 +1620,12 @@ const ColorAnalyzer = () => {
                             fill={themeColor}
                             d="M582.2,222.3c0,14.9-2.8,29.2-8,42.3-16.9,43.1-59,73.7-108,73.7s-91.1-30.6-108-73.7c-5.2-13.1-8-27.4-8-42.3s2.8-29.2,8-42.3c16.9-43.1,59-73.8,108-73.8s91.1,30.6,108,73.8c5.2,13.1,8,27.4,8,42.3Z"
                           />
-                          <g>
+
+                          <g fill={darkMode ? "white" : "black"}>
                             <path d="M124.7,467.6c-2.2,9.7-3.4,19.7-3.4,30.1s1.2,20.4,3.4,30.1H30.1c-16.6,0-30.1-13.5-30.1-30.1s13.5-30.1,30.1-30.1h94.7Z" />
                             <path d="M720,497.7c0,16.6-13.5,30.1-30.1,30.1h-306.9c2.2-9.7,3.4-19.7,3.4-30.1s-1.2-20.4-3.4-30.1h306.9c16.6,0,30.1,13.5,30.1,30.1Z" />
                           </g>
-                          <g>
+                          <g fill={darkMode ? "white" : "black"}>
                             <path d="M337,192.2c-2.2,9.7-3.4,19.7-3.4,30.1s1.2,20.4,3.4,30.1H30.1c-16.6,0-30.1-13.5-30.1-30.1s13.5-30.1,30.1-30.1h306.9Z" />
                             <path d="M720,222.3c0,16.6-13.5,30.1-30.1,30.1h-94.7c2.2-9.7,3.4-19.7,3.4-30.1s-1.2-20.4-3.4-30.1h94.7c16.6,0,30.1,13.5,30.1,30.1Z" />
                           </g>
